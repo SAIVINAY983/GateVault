@@ -1,0 +1,188 @@
+:root {
+  --gv-primary: #0f172a;
+  --gv-primary-hover: #1e293b;
+  --gv-accent: #3b82f6;
+  --gv-accent-hover: #2563eb;
+  
+  --gv-success: #10b981;
+  --gv-success-bg: #d1fae5;
+  --gv-success-text: #065f46;
+
+  --gv-warning: #f59e0b;
+  --gv-warning-bg: #fef3c7;
+  --gv-warning-text: #92400e;
+
+  --gv-danger: #ef4444;
+  --gv-danger-bg: #fee2e2;
+  --gv-danger-text: #991b1b;
+  
+  --gv-neutral: #64748b;
+  --gv-neutral-bg: #f1f5f9;
+  --gv-neutral-text: #334155;
+
+  --gv-bg-main: #f8fafc;
+  --gv-bg-card: #ffffff;
+  
+  --gv-text-main: #334155;
+  --gv-text-heading: #0f172a;
+  --gv-text-muted: #64748b;
+  
+  --gv-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --gv-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --gv-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  
+  --gv-radius-sm: 0.375rem;
+  --gv-radius-md: 0.5rem;
+  --gv-radius-lg: 0.75rem;
+  --gv-radius-xl: 1rem;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--gv-bg-main);
+  color: var(--gv-text-main);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--gv-text-heading);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+/* Custom Utilities based on Design System */
+.gv-card {
+  background-color: var(--gv-bg-card);
+  border-radius: var(--gv-radius-lg);
+  box-shadow: var(--gv-shadow-sm);
+  border: 1px solid #e2e8f0;
+  transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+.gv-card:hover {
+  box-shadow: var(--gv-shadow-md);
+}
+
+.gv-card.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--gv-shadow-lg);
+}
+
+.gv-btn-primary {
+  background-color: var(--gv-primary);
+  color: white;
+  border-radius: var(--gv-radius-md);
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border: none;
+  transition: all 0.2s;
+}
+
+.gv-btn-primary:hover:not(:disabled) {
+  background-color: var(--gv-primary-hover);
+  color: white;
+}
+
+.gv-btn-accent {
+  background-color: var(--gv-accent);
+  color: white;
+  border-radius: var(--gv-radius-md);
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border: none;
+  transition: all 0.2s;
+}
+
+.gv-btn-accent:hover:not(:disabled) {
+  background-color: var(--gv-accent-hover);
+  color: white;
+}
+
+/* Layout Utilities */
+.sidebar-link {
+  color: #94a3b8;
+  border-radius: var(--gv-radius-md);
+  padding: 0.75rem 1rem;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+}
+
+.sidebar-link:hover, .sidebar-link.active {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.sidebar-link.active {
+  background-color: var(--gv-accent);
+}
+
+/* Responsive Main Layout Wrapper */
+.main-content-wrapper {
+  margin-left: 0;
+  transition: margin-left 0.3s ease;
+}
+
+@media (min-width: 992px) {
+  .main-content-wrapper {
+    margin-left: 280px;
+  }
+}
+
+/* Tracking PIN specific styles */
+.pin-display {
+  letter-spacing: 0.25em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hide scrollbar for clean UI but allow scroll */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Landing Page Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float 6s ease-in-out 3s infinite;
+}
+
+.landing-section {
+  padding: 5rem 0;
+}
+
+@media (min-width: 768px) {
+  .landing-section {
+    padding: 8rem 0;
+  }
+}
