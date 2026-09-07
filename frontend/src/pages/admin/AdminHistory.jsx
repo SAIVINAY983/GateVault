@@ -57,7 +57,7 @@ const AdminHistory = () => {
             const query = searchQuery.toLowerCase();
             const idMatch = p.parcel_id.toLowerCase().includes(query);
             const nameMatch = (p.resident_name || '').toLowerCase().includes(query);
-            const flatMatch = p.flat_details.number.toLowerCase().includes(query);
+            const flatMatch = p.flat_details?.number?.toLowerCase().includes(query) || false;
             if (!idMatch && !nameMatch && !flatMatch) return false;
         }
 
@@ -135,7 +135,7 @@ const AdminHistory = () => {
                                     </td>
                                     <td className="py-3">
                                         <div className="fw-medium text-dark">{p.resident_name || 'Unassigned'}</div>
-                                        <div className="text-muted small mt-1">Flat {p.flat_details.number} ({p.flat_details.tower_name})</div>
+                                        <div className="text-muted small mt-1">Flat {p.flat_details?.number} ({p.flat_details?.tower_name})</div>
                                     </td>
                                     <td className="py-3">
                                         <div className="small text-muted mb-1">

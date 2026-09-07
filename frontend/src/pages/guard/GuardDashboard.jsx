@@ -14,7 +14,7 @@ const GuardDashboard = () => {
         try {
             setLoading(true);
             setError('');
-            const res = await axiosInstance.get('guard/pending-parcels/');
+            const res = await axiosInstance.get('parcels/pending/');
             setParcels(res.data);
         } catch (err) {
             setError('Failed to load pending parcels');
@@ -109,7 +109,7 @@ const GuardDashboard = () => {
                                         <td className="ps-4 py-3 fw-bold text-dark">{p.parcel_id}</td>
                                         <td className="py-3">
                                             <div className="fw-medium text-dark">{p.resident_name || 'Unassigned'}</div>
-                                            <div className="text-muted small">Flat {p.flat_details.number}</div>
+                                            <div className="text-muted small">Flat {p.flat_details?.number}</div>
                                         </td>
                                         <td className="py-3">
                                             <div className="d-flex align-items-center gap-1">
@@ -120,7 +120,7 @@ const GuardDashboard = () => {
                                         <td className="py-3 fw-medium">{p.shelf_name}</td>
                                         <td className="py-3"><StatusBadge status={p.status} isOverdue={p.is_overdue} /></td>
                                         <td className="pe-4 py-3 text-end">
-                                            <button onClick={() => navigate('/guard/verify')} className="btn btn-sm btn-outline-primary fw-medium">
+                                            <button onClick={() => navigate('/guard/verify', { state: { parcel_id: p.parcel_id } })} className="btn btn-sm btn-outline-primary fw-medium">
                                                 Verify
                                             </button>
                                         </td>

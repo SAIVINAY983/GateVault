@@ -1,6 +1,6 @@
 from rest_framework import viewsets, generics, status, views
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Count, Q
@@ -12,7 +12,8 @@ from .models import (
 )
 from .serializers import (
     UserSerializer, TowerSerializer, FlatSerializer,
-    CarrierSerializer, StorageShelfSerializer, ParcelSerializer
+    CarrierSerializer, StorageShelfSerializer, ParcelSerializer,
+    AdminUserListSerializer, CreateResidentSerializer, CreateGuardSerializer
 )
 from .permissions import IsAdminUser, IsGuardUser, IsResidentUser, IsAdminOrGuard
 
@@ -30,15 +31,29 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
+class PublicResidentRegisterView(generics.CreateAPIView):
+    serializer_class = CreateResidentSerializer
+    permission_classes = [] # AllowAny
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response(
+                {"message": "Resident account created successfully.", "username": user.username},
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 class TowerViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Tower.objects.all()
     serializer_class = TowerSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
 class FlatViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Flat.objects.all()
     serializer_class = FlatSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -175,3 +190,41 @@ class AdminParcelHistoryView(generics.ListAPIView):
     serializer_class = ParcelSerializer
     permission_classes = [IsAdminUser]
     queryset = Parcel.objects.all().order_by('-received_at')
+
+
+class AdminUserManagementViewSet(viewsets.ViewSet):
+    permission_classes = [IsAdminUser]
+
+    def list(self, request):
+        users = User.objects.exclude(id=request.user.id).order_by('-date_joined')
+        serializer = AdminUserListSerializer(users, many=True)
+        return Response(serializer.data)
+
+    def create_resident(self, request):
+        serializer = CreateResidentSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response(
+                {"message": "Resident created successfully", "user": AdminUserListSerializer(user).data},
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def create_guard(self, request):
+        serializer = CreateGuardSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response(
+                {"message": "Guard created successfully", "user": AdminUserListSerializer(user).data},
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def toggle_active(self, request, pk=None):
+        try:
+            user = User.objects.exclude(id=request.user.id).get(pk=pk)
+            user.is_active = not user.is_active
+            user.save()
+            return Response({"message": f"User {'activated' if user.is_active else 'deactivated'} successfully", "is_active": user.is_active})
+        except User.DoesNotExist:
+            return Response({"error": "User not found or cannot modify self."}, status=status.HTTP_404_NOT_FOUND)

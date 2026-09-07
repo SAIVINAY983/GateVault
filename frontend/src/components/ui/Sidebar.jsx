@@ -69,6 +69,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                         <>
                             <NavLink to="/admin" icon="bi-grid-1x2-fill" label="Dashboard" />
                             <NavLink to="/admin/history" icon="bi-clock-history" label="Parcel History" />
+                            <NavLink to="/admin/users" icon="bi-people-fill" label="User Management" />
                         </>
                     )}
                     

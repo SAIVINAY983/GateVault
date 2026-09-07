@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import axiosInstance from '../../api/axiosInstance';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const PickupVerification = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [credentials, setCredentials] = useState({
-        parcel_id: '',
+        parcel_id: location.state?.parcel_id || '',
         pickup_pin: ''
     });
     
@@ -21,8 +22,8 @@ const PickupVerification = () => {
         setVerifiedParcel(null);
 
         try {
-            const res = await axiosInstance.post(`parcels/${credentials.parcel_id}/verify/`, {
-                pickup_pin: credentials.pickup_pin
+            const res = await axiosInstance.post(`parcels/${credentials.parcel_id.trim()}/verify/`, {
+                pickup_pin: credentials.pickup_pin.trim()
             });
             setVerifiedParcel(res.data.parcel);
         } catch (err) {
@@ -35,7 +36,7 @@ const PickupVerification = () => {
     const handleHandover = async () => {
         setLoading(true);
         try {
-            await axiosInstance.post(`parcels/${credentials.parcel_id}/handover/`);
+            await axiosInstance.post(`parcels/${credentials.parcel_id.trim()}/handover/`);
             setHandoverSuccess(true);
             setVerifiedParcel(null);
         } catch (err) {
@@ -126,7 +127,7 @@ const PickupVerification = () => {
                                         required
                                     />
                                 </div>
-                                <button type="submit" className="gv-btn-accent w-100 py-3 fs-5 fw-bold d-flex align-items-center justify-content-center gap-2" disabled={loading || !credentials.parcel_id || credentials.pickup_pin.length !== 4}>
+                                <button type="submit" className="gv-btn-accent w-100 py-3 fs-5 fw-bold d-flex align-items-center justify-content-center gap-2" disabled={loading}>
                                     {loading ? (
                                         <><span className="spinner-border spinner-border-sm"></span> Verifying...</>
                                     ) : (
@@ -149,7 +150,7 @@ const PickupVerification = () => {
                                     </div>
                                     <div className="col-6">
                                         <small className="text-muted text-uppercase d-block mb-1" style={{ fontSize: '0.7rem' }}>Destination</small>
-                                        <div className="fw-bold text-dark fs-5">Flat {verifiedParcel.flat_details.number}</div>
+                                        <div className="fw-bold text-dark fs-5">Flat {verifiedParcel.flat_details?.number}</div>
                                     </div>
                                     <div className="col-6">
                                         <small className="text-muted text-uppercase d-block mb-1" style={{ fontSize: '0.7rem' }}>Carrier</small>

@@ -37,8 +37,8 @@ const PickupPass = ({ parcel, onClose }) => {
                     <div className="row g-2 text-start bg-main rounded-3 p-3 mb-4 mx-0">
                         <div className="col-6 border-end">
                             <small className="text-muted d-block text-uppercase mb-1" style={{ fontSize: '0.65rem' }}>Destination</small>
-                            <div className="fw-bold text-dark">Flat {parcel.flat_details.number}</div>
-                            <div className="small text-muted">{parcel.flat_details.tower_name} Tower</div>
+                            <div className="fw-bold text-dark">Flat {parcel.flat_details?.number}</div>
+                            <div className="small text-muted">{parcel.flat_details?.tower_name} Tower</div>
                         </div>
                         <div className="col-6 ps-3">
                             <small className="text-muted d-block text-uppercase mb-1" style={{ fontSize: '0.65rem' }}>Arrived</small>

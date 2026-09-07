@@ -6,8 +6,10 @@ import AppLayout from './layouts/AppLayout';
 
 // Pages
 import Login from './pages/Login';
+import Register from './pages/Register';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminHistory from './pages/admin/AdminHistory';
+import AdminUsers from './pages/admin/AdminUsers';
 import GuardDashboard from './pages/guard/GuardDashboard';
 import ParcelIntake from './pages/guard/ParcelIntake';
 import PickupVerification from './pages/guard/PickupVerification';
@@ -22,6 +24,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           
           {/* Protected Routes inside Layout */}
           <Route element={<AppLayout />}>
@@ -32,6 +35,9 @@ function App() {
             } />
             <Route path="/admin/history" element={
               <RoleBasedRoute allowedRoles={['ADMIN']}><AdminHistory /></RoleBasedRoute>
+            } />
+            <Route path="/admin/users" element={
+              <RoleBasedRoute allowedRoles={['ADMIN']}><AdminUsers /></RoleBasedRoute>
             } />
 
             {/* Guard Routes */}
