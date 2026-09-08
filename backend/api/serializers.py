@@ -1,5 +1,7 @@
 from rest_framework import serializers
-from .models import User, Tower, Flat, ResidentProfile, GuardProfile, Carrier, StorageShelf, Parcel, PickupVerification
+from .models import (
+    User, Tower, Flat, ResidentProfile, GuardProfile, Carrier, StorageShelf, Parcel, PickupVerification, Notification, ExpectedDelivery
+)
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -33,15 +35,22 @@ class ParcelSerializer(serializers.ModelSerializer):
     carrier_name = serializers.SerializerMethodField()
     shelf_name = serializers.SerializerMethodField()
     resident_name = serializers.SerializerMethodField()
+    expected_delivery_id = serializers.IntegerField(write_only=True, required=False)
+    shelf = serializers.PrimaryKeyRelatedField(queryset=StorageShelf.objects.all(), required=False, allow_null=True)
+    courier_payment_confirmed = serializers.BooleanField(write_only=True, required=False)
+    payment_confirmed_by_username = serializers.SerializerMethodField()
     
     class Meta:
         model = Parcel
         fields = [
-            'id', 'parcel_id', 'flat', 'flat_details', 'resident', 'resident_name',
+            'id', 'parcel_id', 'delivery_type', 'flat', 'flat_details', 'resident', 'resident_name',
             'carrier', 'carrier_name', 'tracking_number', 'shelf', 'shelf_name',
-            'status', 'pickup_pin', 'received_at', 'handed_over_at', 'is_overdue'
+            'status', 'pickup_pin', 'received_at', 'handed_over_at', 'is_overdue', 'expected_delivery_id',
+            'payment_type', 'cod_amount', 'payment_method', 'payment_status', 'payment_confirmed_by', 
+            'payment_confirmed_at', 'courier_payment_confirmed', 'payment_confirmed_by_username',
+            'is_open_box', 'open_box_resolution'
         ]
-        read_only_fields = ['parcel_id', 'pickup_pin', 'received_at', 'handed_over_at']
+        read_only_fields = ['parcel_id', 'pickup_pin', 'received_at', 'handed_over_at', 'payment_confirmed_by', 'payment_confirmed_at']
 
     def get_resident_name(self, obj):
         if obj.resident:
@@ -53,7 +62,10 @@ class ParcelSerializer(serializers.ModelSerializer):
         return obj.carrier.name if obj.carrier else "Unknown Carrier"
         
     def get_shelf_name(self, obj):
-        return obj.shelf.name if obj.shelf else "Unassigned"
+        return obj.shelf.name if obj.shelf else None
+
+    def get_payment_confirmed_by_username(self, obj):
+        return obj.payment_confirmed_by.username if obj.payment_confirmed_by else None
 
 class AdminUserListSerializer(serializers.ModelSerializer):
     flat_details = serializers.SerializerMethodField()
@@ -126,3 +138,75 @@ class CreateGuardSerializer(serializers.ModelSerializer):
         
         GuardProfile.objects.create(user=user)
         return user
+
+class NotificationSerializer(serializers.ModelSerializer):
+    parcel_id = serializers.CharField(source='parcel.parcel_id', read_only=True)
+    
+    class Meta:
+        model = Notification
+        fields = ['id', 'title', 'message', 'notification_type', 'is_read', 'created_at', 'parcel', 'parcel_id']
+
+class ExpectedDeliverySerializer(serializers.ModelSerializer):
+    resident_name = serializers.SerializerMethodField(read_only=True)
+    flat_display = serializers.SerializerMethodField(read_only=True)
+    flat_id = serializers.SerializerMethodField(read_only=True)
+    tower_id = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = ExpectedDelivery
+        fields = '__all__'
+        read_only_fields = ['resident', 'status', 'created_at', 'updated_at']
+
+    def get_resident_name(self, obj):
+        name = obj.resident.get_full_name()
+        return name if name else obj.resident.username
+
+    def get_flat_display(self, obj):
+        try:
+            flat = obj.resident.resident_profile.flat
+            if flat:
+                return f"{flat.tower.name}-{flat.number}"
+        except Exception:
+            pass
+        return "Unknown"
+        
+    def get_flat_id(self, obj):
+        try:
+            flat = obj.resident.resident_profile.flat
+            if flat:
+                return flat.id
+        except Exception:
+            pass
+        return None
+        
+    def get_tower_id(self, obj):
+        try:
+            flat = obj.resident.resident_profile.flat
+            if flat:
+                return flat.tower.id
+        except Exception:
+            pass
+        return None
+
+    def validate_tracking_id(self, value):
+        # Validate uniqueness of tracking_id among ACTIVE ('EXPECTED') records
+        if ExpectedDelivery.objects.filter(tracking_id=value, status='EXPECTED').exists():
+            raise serializers.ValidationError("This tracking ID is already registered.")
+        return value
+
+    def validate(self, attrs):
+        payment_type = attrs.get('payment_type')
+        cod_amount = attrs.get('cod_amount')
+
+        if payment_type == 'COD':
+            if not cod_amount or cod_amount <= 0:
+                raise serializers.ValidationError({"cod_amount": "COD amount must be greater than 0."})
+        elif payment_type == 'PREPAID':
+            attrs['cod_amount'] = None
+
+        return attrs
+
+    def create(self, validated_data):
+        # request.user is passed via serializer context in viewset
+        validated_data['resident'] = self.context['request'].user
+        return super().create(validated_data)

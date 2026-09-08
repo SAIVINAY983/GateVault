@@ -43,11 +43,11 @@ const LandingNavbar = () => {
                     </ul>
                     
                     {/* CTA */}
-                    <div className="d-flex flex-column flex-lg-row gap-3 mt-3 mt-lg-0">
-                        <Link to="/login" className="btn btn-outline-primary px-4 fw-medium">
+                    <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-3 mt-3 mt-lg-0">
+                        <Link to="/login" className="text-dark fw-medium text-decoration-none px-2">
                             Log In
                         </Link>
-                        <Link to="/login" className="gv-btn-primary px-4">
+                        <Link to="/login" className="gv-btn-primary px-4 py-2">
                             Access GateVault
                         </Link>
                     </div>

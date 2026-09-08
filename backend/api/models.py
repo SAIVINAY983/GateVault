@@ -88,15 +88,57 @@ class Parcel(models.Model):
         ('OVERDUE', 'Overdue'),
         ('HANDED_OVER', 'Handed Over'),
         ('CANCELLED', 'Cancelled'),
+        ('DELIVERY_ATTEMPTED', 'Delivery Attempted'),
+        ('RESCHEDULED', 'Rescheduled'),
+    )
+
+    DELIVERY_TYPE_CHOICES = (
+        ('NORMAL', 'Normal'),
+        ('FOOD', 'Food Delivery'),
+    )
+
+    PAYMENT_TYPE_CHOICES = (
+        ('PREPAID', 'Prepaid'),
+        ('COD', 'Cash on Delivery (COD)'),
+    )
+
+    PAYMENT_METHOD_CHOICES = (
+        ('CASH', 'Cash (Direct to Courier)'),
+        ('UPI', 'UPI / Remote Digital Link'),
+        ('NOT_APPLICABLE', 'Not Applicable'),
+    )
+
+    PAYMENT_STATUS_CHOICES = (
+        ('PENDING', 'Pending Payment'),
+        ('PAID', 'Payment Verified to Courier'),
+        ('FAILED', 'Unpaid / Delivery Attempted'),
+        ('NOT_APPLICABLE', 'Not Applicable'),
+    )
+
+    OPEN_BOX_RESOLUTION_CHOICES = (
+        ('NOT_APPLICABLE', 'Not Applicable'),
+        ('DIRECT_RESIDENT_HANDOVER', 'Direct Handover at Gate'),
+        ('RESCHEDULED', 'Rescheduled - Returned with Courier'),
     )
 
     parcel_id = models.CharField(max_length=20, unique=True, default=generate_parcel_id)
+    delivery_type = models.CharField(max_length=10, choices=DELIVERY_TYPE_CHOICES, default='NORMAL')
+    payment_type = models.CharField(max_length=10, choices=PAYMENT_TYPE_CHOICES, default='PREPAID')
+    cod_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='NOT_APPLICABLE')
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='NOT_APPLICABLE')
+    payment_confirmed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='confirmed_cod_parcels')
+    payment_confirmed_at = models.DateTimeField(null=True, blank=True)
     flat = models.ForeignKey(Flat, on_delete=models.CASCADE, related_name='parcels')
     resident = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='received_parcels', help_text="The resident receiving the parcel")
     carrier = models.ForeignKey(Carrier, on_delete=models.SET_NULL, null=True, related_name='parcels')
     tracking_number = models.CharField(max_length=100, blank=True, null=True)
     shelf = models.ForeignKey(StorageShelf, on_delete=models.SET_NULL, null=True, related_name='parcels')
+    expected_delivery = models.OneToOneField('ExpectedDelivery', on_delete=models.SET_NULL, null=True, blank=True, related_name='received_parcel', help_text="The pre-registered expected delivery this parcel fulfills")
     
+    is_open_box = models.BooleanField(default=False)
+    open_box_resolution = models.CharField(max_length=30, choices=OPEN_BOX_RESOLUTION_CHOICES, default='NOT_APPLICABLE')
+
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='AWAITING_PICKUP')
     pickup_pin = models.CharField(max_length=4, default=generate_pickup_pin)
     
@@ -111,6 +153,9 @@ class Parcel(models.Model):
 
     @property
     def is_overdue(self):
+        if self.delivery_type == 'FOOD':
+            return False
+            
         if self.status == 'AWAITING_PICKUP':
             time_diff = timezone.now() - self.received_at
             if time_diff.total_seconds() > 48 * 3600:
@@ -124,3 +169,61 @@ class PickupVerification(models.Model):
 
     def __str__(self):
         return f"Verification for {self.parcel.parcel_id}"
+
+class Notification(models.Model):
+    NOTIFICATION_TYPES = (
+        ('NEW_PARCEL', 'New Parcel'),
+        ('FOOD_DELIVERY', 'Food Delivery'),
+        ('OVERDUE', 'Overdue Parcel'),
+        ('HANDOVER', 'Handover Completed'),
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
+    parcel = models.ForeignKey(Parcel, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.title}"
+
+class ExpectedDelivery(models.Model):
+    STATUS_CHOICES = (
+        ('EXPECTED', 'Expected'),
+        ('CANCELLED', 'Cancelled'),
+    )
+    DELIVERY_TYPE_CHOICES = (
+        ('PARCEL', 'Parcel'),
+        ('FOOD', 'Food Delivery'),
+    )
+    PAYMENT_TYPE_CHOICES = (
+        ('PREPAID', 'Prepaid'),
+        ('COD', 'Cash on Delivery (COD)'),
+    )
+
+    resident = models.ForeignKey(User, on_delete=models.CASCADE, related_name='expected_deliveries', help_text="Resident who expects the delivery")
+    tracking_id = models.CharField(max_length=100, db_index=True)
+    order_id = models.CharField(max_length=100, blank=True, null=True)
+    courier_name = models.CharField(max_length=100)
+    
+    delivery_type = models.CharField(max_length=10, choices=DELIVERY_TYPE_CHOICES)
+    payment_type = models.CharField(max_length=10, choices=PAYMENT_TYPE_CHOICES)
+    cod_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    
+    expected_delivery_date = models.DateField()
+    delivery_photo = models.ImageField(upload_to='expected_deliveries/', null=True, blank=True)
+    note = models.TextField(blank=True, null=True)
+    is_open_box = models.BooleanField(default=False)
+    open_box_resolution = models.CharField(max_length=30, choices=Parcel.OPEN_BOX_RESOLUTION_CHOICES, default='NOT_APPLICABLE')
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='EXPECTED')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Expected {self.courier_name} for {self.resident.username} ({self.tracking_id})"

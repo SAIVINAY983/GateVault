@@ -84,6 +84,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     {user?.role === 'RESIDENT' && (
                         <>
                             <NavLink to="/resident" icon="bi-grid-1x2-fill" label="My Dashboard" />
+                            <NavLink to="/resident/send-delivery" icon="bi-calendar-plus" label="Send Delivery Details" />
                             <NavLink to="/resident/history" icon="bi-clock-history" label="Delivery History" />
                         </>
                     )}

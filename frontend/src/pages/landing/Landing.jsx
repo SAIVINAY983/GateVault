@@ -32,7 +32,7 @@ const Landing = () => {
                                 Smart Parcel Management
                             </span>
                             <h1 className="display-4 fw-bold text-dark mb-4 lh-sm" style={{ letterSpacing: '-0.03em' }}>
-                                Secure every parcel from <span className="text-primary">gatehouse</span> to <span className="text-primary">doorstep.</span>
+                                Secure every parcel from <span className="text-primary">gatehouse</span> to <span className="text-primary">verified handover.</span>
                             </h1>
                             <p className="lead text-muted mb-5 pe-lg-4" style={{ lineHeight: '1.6' }}>
                                 GateVault helps residential communities register, track and securely hand over every delivery — without gatehouse congestion or uncertain parcel collection.
@@ -47,10 +47,24 @@ const Landing = () => {
                             </div>
                         </div>
 
-                        <div className="col-12 col-lg-6 position-relative animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-                            <div className="position-relative animate-float" style={{ zIndex: 2 }}>
+                        <div className="col-12 col-lg-6 position-relative animate-fade-in-up d-flex align-items-center justify-content-center mt-5 mt-lg-0" style={{ animationDelay: '0.2s' }}>
+                            <div className="position-relative animate-float w-100" style={{ zIndex: 2, maxWidth: '420px' }}>
+                                {/* Secondary Background Card */}
+                                <div className="position-absolute bg-white rounded-4 shadow-sm border p-4 opacity-75" style={{ top: '-30px', right: '-10px', left: '30px', bottom: '30px', zIndex: -1, transform: 'rotate(6deg)' }}>
+                                    <div className="d-flex align-items-center gap-2 mb-3 border-bottom pb-2">
+                                        <i className="bi bi-bell-fill text-warning"></i>
+                                        <span className="fw-bold small text-muted text-uppercase">Guard Notification</span>
+                                    </div>
+                                    <div className="d-flex align-items-center gap-3 mb-2">
+                                        <div className="bg-primary bg-opacity-25 rounded-circle" style={{ width: '20px', height: '20px' }}></div>
+                                        <div className="bg-light rounded w-50" style={{ height: '14px' }}></div>
+                                    </div>
+                                    <div className="bg-light rounded w-75 mb-2 ms-4" style={{ height: '10px' }}></div>
+                                    <div className="bg-light rounded w-50 ms-4" style={{ height: '10px' }}></div>
+                                </div>
+
                                 {/* Mock UI representation */}
-                                <div className="bg-white rounded-4 shadow-lg border p-4 ms-lg-5 position-relative">
+                                <div className="bg-white rounded-4 shadow-lg border p-4 position-relative mx-auto">
                                     <div className="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
                                         <div className="fw-bold fs-5"><i className="bi bi-box-seam text-primary me-2"></i>GV-2026-001245</div>
                                         <span className="badge bg-warning text-dark px-3 py-2 rounded-pill">Awaiting Pickup</span>
@@ -138,7 +152,7 @@ const Landing = () => {
             </section>
 
             {/* SOLUTION (WORKFLOW) SECTION */}
-            <section className="landing-section bg-white border-top">
+            <section className="pt-5 pb-4 bg-white border-top">
                 <div className="container text-center" style={{ maxWidth: '1200px' }}>
                     <h2 className="display-6 fw-bold text-dark mb-3">One secure workflow. Complete parcel visibility.</h2>
                     <p className="lead text-muted mb-5 mx-auto" style={{ maxWidth: '700px' }}>
@@ -167,7 +181,7 @@ const Landing = () => {
                     </div>
 
                     {/* Mobile Vertical Workflow */}
-                    <div className="d-lg-none d-flex flex-column align-items-center gap-4 mt-5 position-relative">
+                    <div className="d-lg-none d-flex flex-column align-items-center gap-4 mt-5 position-relative pb-4">
                         <div className="position-absolute h-100 border-start border-2 border-primary border-opacity-25" style={{ left: '50%', transform: 'translateX(-50%)', zIndex: 1 }}></div>
                         {[
                             { step: '01', title: 'Parcel Arrives' },
@@ -189,7 +203,7 @@ const Landing = () => {
             </section>
 
             {/* HOW IT WORKS (ROLES) */}
-            <section id="how-it-works" className="landing-section bg-main border-top">
+            <section id="how-it-works" className="pt-4 pb-5 bg-main border-top">
                 <div className="container" style={{ maxWidth: '1200px' }}>
                     
                     <div className="row g-5">

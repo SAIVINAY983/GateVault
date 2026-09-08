@@ -36,9 +36,11 @@ const AdminDashboard = () => {
     // Navy and Light Gray for pie chart
     const storageColors = ['#0f172a', '#e2e8f0'];
 
-    const carrierData = stats.carrier_stats.map(c => ({
-        name: c.carrier__name,
-        parcels: c.count
+    const carrierColors = ['#3b82f6', '#f59e0b', '#10b981', '#6366f1', '#ef4444', '#8b5cf6'];
+    const carrierData = stats.carrier_stats.map((c, i) => ({
+        name: c.carrier__name || 'Unknown',
+        parcels: c.count,
+        fill: carrierColors[i % carrierColors.length]
     }));
 
     const occupancyRate = Math.round((stats.storage.occupied / stats.storage.capacity) * 100);
@@ -136,6 +138,25 @@ const AdminDashboard = () => {
                                     <div className="fw-bold fs-5 pe-1">{stats.storage.capacity - stats.storage.occupied}</div>
                                 </div>
                             </div>
+                            
+                            {/* New Shelf Breakdown */}
+                            <div className="mt-4 pt-3 border-top">
+                                <h6 className="fw-semibold small text-muted mb-3">Occupancy by Zone</h6>
+                                {stats.storage.breakdown?.map(shelf => (
+                                    <div key={shelf.name} className="mb-3">
+                                        <div className="d-flex justify-content-between small mb-1">
+                                            <span className="fw-medium text-dark">{shelf.name}</span>
+                                            <span className="text-muted">{shelf.occupied}/{shelf.capacity}</span>
+                                        </div>
+                                        <div className="progress" style={{ height: '6px' }}>
+                                            <div 
+                                                className={`progress-bar ${(shelf.occupied/shelf.capacity) > 0.9 ? 'bg-danger' : 'bg-primary'}`} 
+                                                style={{ width: `${Math.min((shelf.occupied / shelf.capacity) * 100, 100)}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -147,17 +168,31 @@ const AdminDashboard = () => {
                             <p className="text-muted small mb-4">Volume of parcels delivered by carrier</p>
                             
                             <div className="flex-grow-1 w-100" style={{ minHeight: '300px' }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={carrierData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                                        <Tooltip 
-                                            cursor={{ fill: '#f1f5f9' }}
-                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                        />
-                                        <Bar dataKey="parcels" fill="#3b82f6" radius={[4, 4, 4, 4]} barSize={40} />
-                                    </BarChart>
-                                </ResponsiveContainer>
+                                {carrierData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={carrierData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                                            <Tooltip 
+                                                cursor={{ fill: '#f1f5f9' }}
+                                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                            />
+                                            <Bar dataKey="parcels" radius={[4, 4, 4, 4]} barSize={40}>
+                                                {carrierData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="d-flex flex-column align-items-center justify-content-center h-100 text-center">
+                                        <div className="bg-light rounded-circle d-flex align-items-center justify-content-center mb-3" style={{ width: '64px', height: '64px' }}>
+                                            <i className="bi bi-box-seam text-muted fs-3"></i>
+                                        </div>
+                                        <h6 className="fw-semibold text-dark">No Carrier Data Yet</h6>
+                                        <p className="text-muted small px-4">There are currently no parcels recorded to generate carrier distribution.</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

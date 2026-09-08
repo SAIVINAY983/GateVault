@@ -5,7 +5,8 @@ from .views import (
     CustomTokenObtainPairView, PublicResidentRegisterView, TowerViewSet, FlatViewSet, CarrierViewSet, StorageShelfViewSet,
     ParcelIntakeView, GuardPendingParcelsView, VerifyPickupView, ConfirmHandoverView,
     ResidentParcelsView, AdminDashboardStatsView, OverdueParcelsView, AdminParcelHistoryView,
-    AdminUserManagementViewSet
+    AdminUserManagementViewSet, NotificationListView, UnreadNotificationCountView,
+    MarkNotificationReadView, MarkAllNotificationsReadView, ExpectedDeliveryViewSet
 )
 
 router = DefaultRouter()
@@ -13,6 +14,7 @@ router.register(r'towers', TowerViewSet, basename='tower')
 router.register(r'flats', FlatViewSet, basename='flat')
 router.register(r'carriers', CarrierViewSet, basename='carrier')
 router.register(r'shelves', StorageShelfViewSet, basename='shelf')
+router.register(r'expected-deliveries', ExpectedDeliveryViewSet, basename='expected-delivery')
 
 urlpatterns = [
     # Auth URLs
@@ -42,4 +44,10 @@ urlpatterns = [
     path('admin/users/resident/', AdminUserManagementViewSet.as_view({'post': 'create_resident'}), name='admin-create-resident'),
     path('admin/users/guard/', AdminUserManagementViewSet.as_view({'post': 'create_guard'}), name='admin-create-guard'),
     path('admin/users/<int:pk>/toggle-active/', AdminUserManagementViewSet.as_view({'patch': 'toggle_active'}), name='admin-toggle-user-active'),
+    
+    # Notifications
+    path('notifications/', NotificationListView.as_view(), name='notifications-list'),
+    path('notifications/unread-count/', UnreadNotificationCountView.as_view(), name='notifications-unread-count'),
+    path('notifications/<int:pk>/read/', MarkNotificationReadView.as_view(), name='notifications-read'),
+    path('notifications/read-all/', MarkAllNotificationsReadView.as_view(), name='notifications-read-all'),
 ]

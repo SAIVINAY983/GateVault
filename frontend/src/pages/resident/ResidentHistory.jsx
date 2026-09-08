@@ -13,8 +13,10 @@ const ResidentHistory = () => {
             setLoading(true);
             setError(false);
             const res = await axiosInstance.get('resident/parcels/');
-            // Only show handed over / past history here
-            setHistory(res.data.filter(p => p.status === 'HANDED_OVER' || p.status === 'CANCELLED'));
+            const filtered = res.data.filter(p => p.status === 'HANDED_OVER' || p.status === 'CANCELLED');
+            // Sort by most recently collected first
+            filtered.sort((a, b) => new Date(b.handed_over_at) - new Date(a.handed_over_at));
+            setHistory(filtered);
         } catch (err) {
             setError(true);
         } finally {
@@ -55,20 +57,41 @@ const ResidentHistory = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="border-top-0">
-                                    {history.map(parcel => (
+                                    {history.map(parcel => {
+                                        let rDate = new Date(parcel.received_at);
+                                        let cDate = new Date(parcel.handed_over_at);
+                                        if (cDate < rDate) {
+                                            const temp = rDate; rDate = cDate; cDate = temp;
+                                        }
+                                        const rFormat = rDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' + rDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                                        const cFormat = cDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' + cDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                                        
+                                        return (
                                         <tr key={parcel.id}>
                                             <td className="ps-4 py-3 text-dark fw-medium">{parcel.parcel_id}</td>
                                             <td className="py-3">
                                                 <div className="d-flex align-items-center gap-2">
                                                     <i className="bi bi-box text-muted"></i>
                                                     {parcel.carrier_name}
+                                                    {parcel.payment_type === 'COD' && (
+                                                        <span className="badge bg-success bg-opacity-10 text-success ms-1" style={{ fontSize: '0.65rem' }}>COD</span>
+                                                    )}
                                                 </div>
                                             </td>
-                                            <td className="py-3 text-muted">{new Date(parcel.received_at).toLocaleString()}</td>
-                                            <td className="py-3 fw-medium text-dark">{new Date(parcel.handed_over_at).toLocaleString()}</td>
+                                            <td className="py-3 text-muted">
+                                                <div className="d-flex flex-column">
+                                                    <span>{rFormat}</span>
+                                                    {parcel.payment_type === 'COD' ? (
+                                                        <span className="text-success small fw-medium"><i className="bi bi-cash"></i> COD Paid via {parcel.payment_method} (₹{parcel.cod_amount})</span>
+                                                    ) : (
+                                                        <span className="text-muted small"><i className="bi bi-credit-card"></i> Prepaid</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="py-3 fw-medium text-dark">{cFormat}</td>
                                             <td className="pe-4 py-3 text-end"><StatusBadge status={parcel.status} /></td>
                                         </tr>
-                                    ))}
+                                    )})}
                                 </tbody>
                             </table>
                         </div>
@@ -76,26 +99,45 @@ const ResidentHistory = () => {
 
                     {/* Mobile Timeline/Card View */}
                     <div className="d-md-none row g-3">
-                        {history.map(parcel => (
+                        {history.map(parcel => {
+                            let rDate = new Date(parcel.received_at);
+                            let cDate = new Date(parcel.handed_over_at);
+                            if (cDate < rDate) {
+                                const temp = rDate; rDate = cDate; cDate = temp;
+                            }
+                            const rFormat = rDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' + rDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                            const cFormat = cDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' + cDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+                            return (
                             <div className="col-12" key={parcel.id}>
                                 <div className="gv-card p-3">
                                     <div className="d-flex justify-content-between align-items-start mb-2">
-                                        <div className="fw-bold">{parcel.carrier_name}</div>
+                                        <div className="fw-bold">
+                                            {parcel.carrier_name}
+                                            {parcel.payment_type === 'COD' && <span className="badge bg-success bg-opacity-10 text-success ms-2" style={{ fontSize: '0.65rem' }}>COD</span>}
+                                        </div>
                                         <StatusBadge status={parcel.status} />
                                     </div>
                                     <div className="text-muted small mb-3">ID: {parcel.parcel_id}</div>
                                     
                                     <div className="d-flex align-items-center gap-2 text-muted small mb-1">
                                         <i className="bi bi-box-arrow-in-right text-secondary"></i>
-                                        Arrived: <span className="text-dark fw-medium">{new Date(parcel.received_at).toLocaleString()}</span>
+                                        Arrived: <span className="text-dark fw-medium">{rFormat}</span>
+                                    </div>
+                                    <div className="text-muted small mb-1 ms-4">
+                                        {parcel.payment_type === 'COD' ? (
+                                            <span className="text-success fw-medium"><i className="bi bi-cash"></i> COD Paid via {parcel.payment_method} (₹{parcel.cod_amount})</span>
+                                        ) : (
+                                            <span><i className="bi bi-credit-card"></i> Prepaid</span>
+                                        )}
                                     </div>
                                     <div className="d-flex align-items-center gap-2 text-muted small">
                                         <i className="bi bi-check-circle-fill text-success"></i>
-                                        Collected: <span className="text-dark fw-medium">{new Date(parcel.handed_over_at).toLocaleString()}</span>
+                                        Collected: <span className="text-dark fw-medium">{cFormat}</span>
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                        )})}
                     </div>
                 </>
             )}

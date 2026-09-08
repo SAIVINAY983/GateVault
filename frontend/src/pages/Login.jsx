@@ -34,6 +34,14 @@ const Login = () => {
 
     return (
         <div className="container-fluid vh-100 p-0 overflow-hidden">
+            <style>
+                {`
+                .form-control:focus, .form-select:focus {
+                    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5) !important;
+                    border-color: #3b82f6 !important;
+                }
+                `}
+            </style>
             <div className="row g-0 h-100">
             {/* Left Column: Branding (hidden on mobile) */}
             <div className="col-lg-6 bg-primary text-white d-none d-lg-flex flex-column justify-content-center p-5 position-relative" style={{background: 'linear-gradient(135deg, var(--gv-primary) 0%, #1e293b 100%)'}}>
@@ -45,7 +53,7 @@ const Login = () => {
                 </div>
                 
                 <div className="px-xl-5 z-1">
-                    <h1 className="display-4 fw-bold mb-4" style={{letterSpacing: '-0.02em'}}>
+                    <h1 className="display-4 fw-bold mb-4 text-white" style={{letterSpacing: '-0.02em'}}>
                         Secure every parcel from gatehouse to handover.
                     </h1>
                     <p className="fs-5 text-white-50 mb-5 pb-3 w-75">
@@ -162,12 +170,18 @@ const Login = () => {
                         Don't have an account? <Link to="/register" className="text-primary fw-semibold text-decoration-none ms-1">Create Resident Account</Link>
                     </div>
 
-                    <div className="mt-5 p-3 bg-light rounded-3 text-center border">
-                        <span className="small fw-bold text-muted text-uppercase d-block mb-2" style={{letterSpacing: '0.05em'}}>Local Development Demo Credentials</span>
-                        <div className="small text-muted d-flex flex-column gap-1">
-                            <div><span className="fw-medium text-dark">Admin:</span> admin / adminpass</div>
-                            <div><span className="fw-medium text-dark">Guard:</span> guard1 / guardpass</div>
-                            <div><span className="fw-medium text-dark">Resident:</span> resident1 / respass</div>
+                    <div className="mt-5 p-4 bg-light rounded-4 text-center border">
+                        <span className="small fw-bold text-muted text-uppercase d-block mb-3" style={{letterSpacing: '0.05em'}}>Demo Quick-Fill</span>
+                        <div className="d-flex justify-content-center gap-2 flex-wrap">
+                            <button type="button" className="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold" onClick={() => { setUsername('admin'); setPassword('adminpass'); }}>
+                                Admin
+                            </button>
+                            <button type="button" className="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold" onClick={() => { setUsername('guard1'); setPassword('guardpass'); }}>
+                                Guard
+                            </button>
+                            <button type="button" className="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold" onClick={() => { setUsername('resident1'); setPassword('respass'); }}>
+                                Resident
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axiosInstance from '../../api/axiosInstance';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -14,6 +14,14 @@ const PickupVerification = () => {
     const [error, setError] = useState('');
     const [verifiedParcel, setVerifiedParcel] = useState(null);
     const [handoverSuccess, setHandoverSuccess] = useState(false);
+    
+    const pinInputRef = useRef(null);
+
+    useEffect(() => {
+        if (pinInputRef.current) {
+            pinInputRef.current.focus();
+        }
+    }, [credentials.parcel_id]);
 
     const handleVerify = async (e) => {
         e.preventDefault();
@@ -118,6 +126,7 @@ const PickupVerification = () => {
                                     <label className="form-label text-muted fw-bold text-uppercase" style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>Secure PIN</label>
                                     <input 
                                         type="text" 
+                                        ref={pinInputRef}
                                         className="form-control form-control-lg bg-light text-center fw-bold pin-display py-3" 
                                         style={{ fontSize: '2rem' }}
                                         placeholder="----"
@@ -137,40 +146,38 @@ const PickupVerification = () => {
                             </form>
                         </div>
                     ) : (
-                        <div className="gv-card overflow-hidden">
-                            <div className="bg-success text-white p-4 text-center">
-                                <i className="bi bi-check-circle-fill display-4 mb-2"></i>
-                                <h4 className="fw-bold mb-0">Identity Verified</h4>
+                        <div className="gv-card overflow-hidden text-center border-2 border-success border">
+                            <div className="bg-success text-white p-4">
+                                <h4 className="fw-bold mb-0 text-uppercase tracking-wide"><i className="bi bi-shield-check me-2"></i> PIN Verified</h4>
                             </div>
                             <div className="p-4 p-md-5">
-                                <div className="row g-4 mb-5 text-center">
-                                    <div className="col-6">
-                                        <small className="text-muted text-uppercase d-block mb-1" style={{ fontSize: '0.7rem' }}>Resident</small>
-                                        <div className="fw-bold text-dark fs-5">{verifiedParcel.resident_name || 'Resident'}</div>
-                                    </div>
-                                    <div className="col-6">
-                                        <small className="text-muted text-uppercase d-block mb-1" style={{ fontSize: '0.7rem' }}>Destination</small>
-                                        <div className="fw-bold text-dark fs-5">Flat {verifiedParcel.flat_details?.number}</div>
-                                    </div>
-                                    <div className="col-6">
-                                        <small className="text-muted text-uppercase d-block mb-1" style={{ fontSize: '0.7rem' }}>Carrier</small>
-                                        <div className="fw-bold text-dark fs-5">{verifiedParcel.carrier_name}</div>
-                                    </div>
-                                    <div className="col-6">
-                                        <small className="text-muted text-uppercase d-block mb-1" style={{ fontSize: '0.7rem' }}>Location</small>
-                                        <div className="fw-bold text-dark fs-5">{verifiedParcel.shelf_name}</div>
+                                <div className="mb-4">
+                                    <div className="text-muted text-uppercase fw-bold mb-2" style={{ letterSpacing: '0.1em' }}>Retrieve From Shelf</div>
+                                    <div className="display-3 fw-bold text-dark bg-light rounded p-4 border border-2 border-dark">
+                                        {verifiedParcel.shelf_name}
                                     </div>
                                 </div>
                                 
-                                <button onClick={handleHandover} className="gv-btn-primary w-100 py-3 fs-5 fw-bold d-flex align-items-center justify-content-center gap-2" disabled={loading}>
+                                <div className="row g-2 mb-5 justify-content-center bg-light rounded p-3 text-start mx-1 border">
+                                    <div className="col-12 col-sm-6">
+                                        <small className="text-muted text-uppercase d-block mb-1" style={{ fontSize: '0.7rem' }}>Resident</small>
+                                        <div className="fw-bold text-dark">{verifiedParcel.resident_name || 'Resident'}</div>
+                                    </div>
+                                    <div className="col-12 col-sm-6">
+                                        <small className="text-muted text-uppercase d-block mb-1" style={{ fontSize: '0.7rem' }}>Flat</small>
+                                        <div className="fw-bold text-dark">{verifiedParcel.flat_details?.number}</div>
+                                    </div>
+                                </div>
+                                
+                                <button onClick={handleHandover} className="gv-btn-primary w-100 py-4 fs-5 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm" disabled={loading}>
                                     {loading ? (
                                         <><span className="spinner-border spinner-border-sm"></span> Processing...</>
                                     ) : (
-                                        <><i className="bi bi-box-arrow-right"></i> CONFIRM HANDOVER</>
+                                        <><i className="bi bi-check2-all fs-4"></i> DONE / NEXT HANDOVER</>
                                     )}
                                 </button>
-                                <button onClick={() => setVerifiedParcel(null)} className="btn btn-link text-muted text-decoration-none w-100 mt-3" disabled={loading}>
-                                    Cancel
+                                <button onClick={() => setVerifiedParcel(null)} className="btn btn-link text-muted text-decoration-none w-100 mt-2" disabled={loading}>
+                                    Cancel & Return
                                 </button>
                             </div>
                         </div>

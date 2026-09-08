@@ -70,7 +70,8 @@ const Register = () => {
                 username: formData.username,
                 email: formData.email,
                 password: formData.password,
-                flat_id: formData.flat_id
+                flat_id: formData.flat_id,
+                role: 'RESIDENT'
             });
             
             setSuccess('Account created successfully.');
@@ -88,6 +89,14 @@ const Register = () => {
 
     return (
         <div className="container-fluid vh-100 p-0 overflow-hidden">
+            <style>
+                {`
+                .form-control:focus, .form-select:focus {
+                    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5) !important;
+                    border-color: #3b82f6 !important;
+                }
+                `}
+            </style>
             <div className="row g-0 h-100">
             {/* Left Column: Branding (hidden on mobile) */}
             <div className="col-lg-6 bg-primary text-white d-none d-lg-flex flex-column justify-content-center p-5 position-relative" style={{background: 'linear-gradient(135deg, var(--gv-primary) 0%, #1e293b 100%)'}}>
@@ -99,7 +108,7 @@ const Register = () => {
                 </div>
                 
                 <div className="px-xl-5 z-1">
-                    <h1 className="display-4 fw-bold mb-4" style={{letterSpacing: '-0.02em'}}>
+                    <h1 className="display-4 fw-bold mb-4 text-white" style={{letterSpacing: '-0.02em'}}>
                         Secure every parcel from gatehouse to handover.
                     </h1>
                     <p className="fs-5 text-white-50 mb-5 pb-3 w-75">

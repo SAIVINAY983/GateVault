@@ -62,6 +62,10 @@ const AdminHistory = () => {
         }
 
         return true;
+    }).sort((a, b) => {
+        if (a.is_overdue && !b.is_overdue) return -1;
+        if (!a.is_overdue && b.is_overdue) return 1;
+        return new Date(b.received_at) - new Date(a.received_at);
     });
 
     return (
@@ -134,7 +138,13 @@ const AdminHistory = () => {
                                         <StatusBadge status={p.status} isOverdue={p.is_overdue} />
                                     </td>
                                     <td className="py-3">
-                                        <div className="fw-medium text-dark">{p.resident_name || 'Unassigned'}</div>
+                                        {p.resident_name ? (
+                                            <div className="fw-medium text-dark">{p.resident_name}</div>
+                                        ) : (
+                                            <div className="d-flex align-items-center gap-1 text-danger bg-danger bg-opacity-10 px-2 py-1 rounded d-inline-block small fw-medium" title="Click to map to resident">
+                                                <i className="bi bi-exclamation-triangle-fill"></i> Unregistered Flat Member
+                                            </div>
+                                        )}
                                         <div className="text-muted small mt-1">Flat {p.flat_details?.number} ({p.flat_details?.tower_name})</div>
                                     </td>
                                     <td className="py-3">
@@ -148,6 +158,12 @@ const AdminHistory = () => {
                                                 <span>-</span>
                                             )}
                                         </div>
+                                        {p.payment_type === 'COD' && p.payment_status === 'PAID' && (
+                                            <div className="small text-muted mt-2 pt-1 border-top" style={{ fontSize: '0.7rem' }}>
+                                                Payment: COD ({p.payment_method})<br/>
+                                                Verified by <strong>{p.payment_confirmed_by_username || 'Unknown'}</strong> at {p.payment_confirmed_at ? new Date(p.payment_confirmed_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+                                            </div>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

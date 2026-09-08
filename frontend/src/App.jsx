@@ -15,6 +15,8 @@ import ParcelIntake from './pages/guard/ParcelIntake';
 import PickupVerification from './pages/guard/PickupVerification';
 import ResidentDashboard from './pages/resident/ResidentDashboard';
 import ResidentHistory from './pages/resident/ResidentHistory';
+import Notifications from './pages/resident/Notifications';
+import SendDeliveryDetails from './pages/resident/SendDeliveryDetails';
 import Landing from './pages/landing/Landing';
 
 function App() {
@@ -57,6 +59,12 @@ function App() {
             } />
             <Route path="/resident/history" element={
               <RoleBasedRoute allowedRoles={['RESIDENT']}><ResidentHistory /></RoleBasedRoute>
+            } />
+            <Route path="/resident/notifications" element={
+              <RoleBasedRoute allowedRoles={['RESIDENT']}><Notifications /></RoleBasedRoute>
+            } />
+            <Route path="/resident/send-delivery" element={
+              <RoleBasedRoute allowedRoles={['RESIDENT']}><SendDeliveryDetails /></RoleBasedRoute>
             } />
 
           </Route>
