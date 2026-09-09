@@ -6,7 +6,8 @@ from .views import (
     ParcelIntakeView, GuardPendingParcelsView, VerifyPickupView, ConfirmHandoverView,
     ResidentParcelsView, AdminDashboardStatsView, OverdueParcelsView, AdminParcelHistoryView,
     AdminUserManagementViewSet, NotificationListView, UnreadNotificationCountView,
-    MarkNotificationReadView, MarkAllNotificationsReadView, ExpectedDeliveryViewSet
+    MarkNotificationReadView, MarkAllNotificationsReadView, ExpectedDeliveryViewSet,
+    FlatmatesListView, DelegatePickupView, RevokeDelegationView
 )
 
 router = DefaultRouter()
@@ -33,6 +34,9 @@ urlpatterns = [
     
     # Resident URLs
     path('resident/parcels/', ResidentParcelsView.as_view(), name='resident-parcels'),
+    path('residents/flatmates/', FlatmatesListView.as_view(), name='resident-flatmates'),
+    path('parcels/<str:parcel_id>/delegate/', DelegatePickupView.as_view(), name='parcel-delegate'),
+    path('parcels/<str:parcel_id>/revoke-delegation/', RevokeDelegationView.as_view(), name='parcel-revoke-delegation'),
 
     # Admin URLs
     path('admin/dashboard/', AdminDashboardStatsView.as_view(), name='admin-dashboard'),

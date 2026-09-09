@@ -139,6 +139,11 @@ class Parcel(models.Model):
     is_open_box = models.BooleanField(default=False)
     open_box_resolution = models.CharField(max_length=30, choices=OPEN_BOX_RESOLUTION_CHOICES, default='NOT_APPLICABLE')
 
+    delegated_to = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='delegated_parcels')
+    is_delegated = models.BooleanField(default=False)
+    collected_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='collected_parcels')
+    collected_by_role_type = models.CharField(max_length=20, choices=[('PRIMARY_RESIDENT', 'Primary Resident'), ('DELEGATED_FLATMATE', 'Delegated Flatmate')], default='PRIMARY_RESIDENT')
+
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='AWAITING_PICKUP')
     pickup_pin = models.CharField(max_length=4, default=generate_pickup_pin)
     

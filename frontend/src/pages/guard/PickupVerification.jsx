@@ -14,6 +14,7 @@ const PickupVerification = () => {
     const [error, setError] = useState('');
     const [verifiedParcel, setVerifiedParcel] = useState(null);
     const [handoverSuccess, setHandoverSuccess] = useState(false);
+    const [collectorType, setCollectorType] = useState('PRIMARY_RESIDENT');
     
     const pinInputRef = useRef(null);
 
@@ -34,6 +35,11 @@ const PickupVerification = () => {
                 pickup_pin: credentials.pickup_pin.trim()
             });
             setVerifiedParcel(res.data.parcel);
+            if (res.data.parcel.is_delegated) {
+                setCollectorType('DELEGATED_FLATMATE');
+            } else {
+                setCollectorType('PRIMARY_RESIDENT');
+            }
         } catch (err) {
             setError(err.response?.data?.error || 'Verification failed. Incorrect ID or PIN.');
         } finally {
@@ -44,7 +50,9 @@ const PickupVerification = () => {
     const handleHandover = async () => {
         setLoading(true);
         try {
-            await axiosInstance.post(`parcels/${credentials.parcel_id.trim()}/handover/`);
+            await axiosInstance.post(`parcels/${credentials.parcel_id.trim()}/handover/`, {
+                collected_by_role_type: collectorType
+            });
             setHandoverSuccess(true);
             setVerifiedParcel(null);
         } catch (err) {
@@ -58,6 +66,7 @@ const PickupVerification = () => {
         setCredentials({ parcel_id: '', pickup_pin: '' });
         setHandoverSuccess(false);
         setVerifiedParcel(null);
+        setCollectorType('PRIMARY_RESIDENT');
         setError('');
     };
 
@@ -158,7 +167,7 @@ const PickupVerification = () => {
                                     </div>
                                 </div>
                                 
-                                <div className="row g-2 mb-5 justify-content-center bg-light rounded p-3 text-start mx-1 border">
+                                <div className="row g-2 mb-4 justify-content-center bg-light rounded p-3 text-start mx-1 border">
                                     <div className="col-12 col-sm-6">
                                         <small className="text-muted text-uppercase d-block mb-1" style={{ fontSize: '0.7rem' }}>Resident</small>
                                         <div className="fw-bold text-dark">{verifiedParcel.resident_name || 'Resident'}</div>
@@ -166,6 +175,49 @@ const PickupVerification = () => {
                                     <div className="col-12 col-sm-6">
                                         <small className="text-muted text-uppercase d-block mb-1" style={{ fontSize: '0.7rem' }}>Flat</small>
                                         <div className="fw-bold text-dark">{verifiedParcel.flat_details?.number}</div>
+                                    </div>
+                                </div>
+                                
+                                {verifiedParcel.is_delegated && (
+                                    <div className="mb-4 px-3 py-2 bg-info bg-opacity-10 text-info rounded border border-info border-opacity-25 d-flex align-items-center justify-content-center gap-2">
+                                        <i className="bi bi-info-circle-fill"></i>
+                                        <span className="small fw-medium">Delegated Pickup Authorized: {verifiedParcel.delegated_to_name} (Flatmate)</span>
+                                    </div>
+                                )}
+                                
+                                <div className="mb-4 text-start px-2">
+                                    <label className="form-label text-muted fw-bold text-uppercase" style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>Actual Collector</label>
+                                    <div className="d-flex flex-column gap-2 mt-1">
+                                        <div className="form-check p-3 border rounded shadow-sm">
+                                            <input 
+                                                className="form-check-input ms-0 me-2" 
+                                                type="radio" 
+                                                name="collectorType" 
+                                                id="collectorPrimary" 
+                                                value="PRIMARY_RESIDENT"
+                                                checked={collectorType === 'PRIMARY_RESIDENT'}
+                                                onChange={() => setCollectorType('PRIMARY_RESIDENT')}
+                                            />
+                                            <label className="form-check-label text-dark fw-medium" htmlFor="collectorPrimary">
+                                                Primary Resident
+                                            </label>
+                                        </div>
+                                        {verifiedParcel.is_delegated && (
+                                            <div className="form-check p-3 border rounded shadow-sm border-info bg-info bg-opacity-10">
+                                                <input 
+                                                    className="form-check-input ms-0 me-2" 
+                                                    type="radio" 
+                                                    name="collectorType" 
+                                                    id="collectorDelegate" 
+                                                    value="DELEGATED_FLATMATE"
+                                                    checked={collectorType === 'DELEGATED_FLATMATE'}
+                                                    onChange={() => setCollectorType('DELEGATED_FLATMATE')}
+                                                />
+                                                <label className="form-check-label text-dark fw-medium" htmlFor="collectorDelegate">
+                                                    Delegated Flatmate ({verifiedParcel.delegated_to_name})
+                                                </label>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 

@@ -88,7 +88,16 @@ const ResidentHistory = () => {
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="py-3 fw-medium text-dark">{cFormat}</td>
+                                            <td className="py-3 fw-medium text-dark">
+                                                <div className="d-flex flex-column">
+                                                    <span>{cFormat}</span>
+                                                    {parcel.collected_by_role_type === 'DELEGATED_FLATMATE' ? (
+                                                        <span className="text-info small fw-bold"><i className="bi bi-person-check"></i> {parcel.delegated_to_name}</span>
+                                                    ) : (
+                                                        <span className="text-muted small">Me</span>
+                                                    )}
+                                                </div>
+                                            </td>
                                             <td className="pe-4 py-3 text-end"><StatusBadge status={parcel.status} /></td>
                                         </tr>
                                     )})}
@@ -134,6 +143,11 @@ const ResidentHistory = () => {
                                     <div className="d-flex align-items-center gap-2 text-muted small">
                                         <i className="bi bi-check-circle-fill text-success"></i>
                                         Collected: <span className="text-dark fw-medium">{cFormat}</span>
+                                    </div>
+                                    <div className="d-flex align-items-center gap-2 text-muted small mt-1 ms-4">
+                                        Collected By: <span className="text-dark fw-medium">
+                                            {parcel.collected_by_role_type === 'DELEGATED_FLATMATE' ? `${parcel.delegated_to_name} (Delegate)` : 'Me'}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

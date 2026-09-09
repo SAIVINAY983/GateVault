@@ -39,6 +39,8 @@ class ParcelSerializer(serializers.ModelSerializer):
     shelf = serializers.PrimaryKeyRelatedField(queryset=StorageShelf.objects.all(), required=False, allow_null=True)
     courier_payment_confirmed = serializers.BooleanField(write_only=True, required=False)
     payment_confirmed_by_username = serializers.SerializerMethodField()
+    delegated_to_name = serializers.SerializerMethodField()
+    is_delegated_to_me = serializers.SerializerMethodField()
     
     class Meta:
         model = Parcel
@@ -48,7 +50,8 @@ class ParcelSerializer(serializers.ModelSerializer):
             'status', 'pickup_pin', 'received_at', 'handed_over_at', 'is_overdue', 'expected_delivery_id',
             'payment_type', 'cod_amount', 'payment_method', 'payment_status', 'payment_confirmed_by', 
             'payment_confirmed_at', 'courier_payment_confirmed', 'payment_confirmed_by_username',
-            'is_open_box', 'open_box_resolution'
+            'is_open_box', 'open_box_resolution',
+            'delegated_to', 'is_delegated', 'collected_by', 'collected_by_role_type', 'delegated_to_name', 'is_delegated_to_me'
         ]
         read_only_fields = ['parcel_id', 'pickup_pin', 'received_at', 'handed_over_at', 'payment_confirmed_by', 'payment_confirmed_at']
 
@@ -66,6 +69,23 @@ class ParcelSerializer(serializers.ModelSerializer):
 
     def get_payment_confirmed_by_username(self, obj):
         return obj.payment_confirmed_by.username if obj.payment_confirmed_by else None
+
+    def get_delegated_to_name(self, obj):
+        if obj.delegated_to:
+            name = obj.delegated_to.get_full_name()
+            return name if name else obj.delegated_to.username
+        return None
+        
+    def get_is_delegated_to_me(self, obj):
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            return obj.delegated_to_id == request.user.id
+        return False
+
+class FlatmateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'first_name', 'last_name']
 
 class AdminUserListSerializer(serializers.ModelSerializer):
     flat_details = serializers.SerializerMethodField()

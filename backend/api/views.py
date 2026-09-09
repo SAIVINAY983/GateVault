@@ -13,10 +13,9 @@ from .models import (
     User, Tower, Flat, Carrier, StorageShelf, Parcel, PickupVerification, Notification, ExpectedDelivery
 )
 from .serializers import (
-    UserSerializer, TowerSerializer, FlatSerializer,
-    CarrierSerializer, StorageShelfSerializer, ParcelSerializer,
-    AdminUserListSerializer, CreateResidentSerializer, CreateGuardSerializer,
-    NotificationSerializer, ExpectedDeliverySerializer
+    UserSerializer, TowerSerializer, FlatSerializer, CarrierSerializer, StorageShelfSerializer,
+    ParcelSerializer, AdminUserListSerializer, CreateResidentSerializer, CreateGuardSerializer,
+    NotificationSerializer, ExpectedDeliverySerializer, FlatmateSerializer
 )
 from .permissions import IsAdminUser, IsGuardUser, IsResidentUser, IsAdminOrGuard
 
@@ -230,11 +229,20 @@ class ConfirmHandoverView(views.APIView):
     permission_classes = [IsGuardUser]
 
     def post(self, request, parcel_id):
+        collected_by_role_type = request.data.get('collected_by_role_type', 'PRIMARY_RESIDENT')
         try:
             parcel = Parcel.objects.get(parcel_id=parcel_id, status__in=['AWAITING_PICKUP', 'OVERDUE'])
             parcel.status = 'HANDED_OVER'
             parcel.handed_over_at = timezone.now()
             parcel.handed_over_by = request.user
+            
+            if parcel.is_delegated and collected_by_role_type == 'DELEGATED_FLATMATE':
+                parcel.collected_by = parcel.delegated_to
+                parcel.collected_by_role_type = 'DELEGATED_FLATMATE'
+            else:
+                parcel.collected_by = parcel.resident
+                parcel.collected_by_role_type = 'PRIMARY_RESIDENT'
+                
             parcel.save()
 
             PickupVerification.objects.create(parcel=parcel, guard=request.user)
@@ -258,7 +266,80 @@ class ResidentParcelsView(generics.ListAPIView):
     permission_classes = [IsResidentUser]
 
     def get_queryset(self):
-        return Parcel.objects.filter(resident=self.request.user).order_by('-received_at')
+        from django.db.models import Q
+        user = self.request.user
+        return Parcel.objects.filter(
+            Q(resident=user) | 
+            Q(delegated_to=user, status__in=['AWAITING_PICKUP', 'OVERDUE'])
+        ).order_by('-received_at')
+
+class FlatmatesListView(generics.ListAPIView):
+    serializer_class = FlatmateSerializer
+    permission_classes = [IsResidentUser]
+
+    def get_queryset(self):
+        user = self.request.user
+        try:
+            flat = user.resident_profile.flat
+            if not flat:
+                return User.objects.none()
+            return User.objects.filter(role='RESIDENT', is_active=True, resident_profile__flat=flat).exclude(id=user.id)
+        except Exception:
+            return User.objects.none()
+
+class DelegatePickupView(views.APIView):
+    permission_classes = [IsResidentUser]
+
+    def post(self, request, parcel_id):
+        flatmate_id = request.data.get('flatmate_id')
+        if not flatmate_id:
+            return Response({"error": "flatmate_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            parcel = Parcel.objects.get(parcel_id=parcel_id, resident=request.user, status__in=['AWAITING_PICKUP', 'OVERDUE'])
+        except Parcel.DoesNotExist:
+            return Response({"error": "Parcel not found or not eligible for delegation"}, status=status.HTTP_404_NOT_FOUND)
+            
+        try:
+            flat = request.user.resident_profile.flat
+            flatmate = User.objects.get(id=flatmate_id, role='RESIDENT', is_active=True, resident_profile__flat=flat)
+        except User.DoesNotExist:
+            return Response({"error": "Invalid flatmate selected"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if flatmate.id == request.user.id:
+            return Response({"error": "Cannot delegate to yourself"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        parcel.is_delegated = True
+        parcel.delegated_to = flatmate
+        parcel.save()
+        
+        carrier_name = parcel.carrier.name if parcel.carrier else "parcel"
+        Notification.objects.create(
+            user=flatmate,
+            title="Pickup Authorized",
+            message=f"{request.user.get_full_name() or request.user.username} authorized you to collect {carrier_name} delivery ({parcel.parcel_id}). Pickup PIN: {parcel.pickup_pin}.",
+            notification_type='NEW_PARCEL',
+            parcel=parcel
+        )
+        
+        return Response({"message": "Delegation successful", "parcel": ParcelSerializer(parcel).data})
+
+class RevokeDelegationView(views.APIView):
+    permission_classes = [IsResidentUser]
+
+    def post(self, request, parcel_id):
+        try:
+            parcel = Parcel.objects.get(parcel_id=parcel_id, resident=request.user, status__in=['AWAITING_PICKUP', 'OVERDUE'])
+            
+            if not parcel.is_delegated:
+                return Response({"error": "Parcel is not currently delegated"}, status=status.HTTP_400_BAD_REQUEST)
+                
+            parcel.is_delegated = False
+            parcel.delegated_to = None
+            parcel.save()
+            return Response({"message": "Delegation revoked successfully", "parcel": ParcelSerializer(parcel).data})
+        except Parcel.DoesNotExist:
+            return Response({"error": "Parcel not found or not eligible for revocation"}, status=status.HTTP_404_NOT_FOUND)
 
 class AdminDashboardStatsView(views.APIView):
     permission_classes = [IsAdminUser]

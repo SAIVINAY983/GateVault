@@ -10,6 +10,59 @@ const ResidentDashboard = () => {
     const [expectedDeliveries, setExpectedDeliveries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+    const [showDelegateModal, setShowDelegateModal] = useState(false);
+    const [selectedParcelForDelegate, setSelectedParcelForDelegate] = useState(null);
+    const [flatmates, setFlatmates] = useState([]);
+    const [loadingFlatmates, setLoadingFlatmates] = useState(false);
+    const [selectedFlatmate, setSelectedFlatmate] = useState('');
+    const [delegateLoading, setDelegateLoading] = useState(false);
+    const [delegateError, setDelegateError] = useState('');
+
+    const openDelegateModal = async (parcel) => {
+        setSelectedParcelForDelegate(parcel);
+        setShowDelegateModal(true);
+        setSelectedFlatmate('');
+        setDelegateError('');
+        
+        try {
+            setLoadingFlatmates(true);
+            const res = await axiosInstance.get('residents/flatmates/');
+            setFlatmates(res.data);
+        } catch (err) {
+            setDelegateError('Failed to load flatmates.');
+        } finally {
+            setLoadingFlatmates(false);
+        }
+    };
+
+    const handleDelegate = async () => {
+        if (!selectedFlatmate) {
+            setDelegateError('Please select a flatmate.');
+            return;
+        }
+        
+        try {
+            setDelegateLoading(true);
+            setDelegateError('');
+            await axiosInstance.post(`parcels/${selectedParcelForDelegate.parcel_id}/delegate/`, { flatmate_id: selectedFlatmate });
+            setShowDelegateModal(false);
+            fetchDashboardData();
+        } catch (err) {
+            setDelegateError(err.response?.data?.error || 'Failed to authorize pickup.');
+        } finally {
+            setDelegateLoading(false);
+        }
+    };
+
+    const handleRevoke = async (parcelId) => {
+        if (!window.confirm('Are you sure you want to revoke this pickup delegation?')) return;
+        try {
+            await axiosInstance.post(`parcels/${parcelId}/revoke-delegation/`);
+            fetchDashboardData();
+        } catch (err) {
+            alert(err.response?.data?.error || 'Failed to revoke delegation.');
+        }
+    };
 
     const fetchDashboardData = async () => {
         try {
@@ -117,6 +170,18 @@ const ResidentDashboard = () => {
                                         <div className="text-muted small">Arrived: {new Date(parcel.received_at).toLocaleDateString('en-GB')} {new Date(parcel.received_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                                     </div>
                                 </div>
+                                {parcel.is_delegated && !parcel.is_delegated_to_me && (
+                                    <div className="px-4 py-2 bg-info bg-opacity-10 text-info border-bottom border-info border-opacity-25 small fw-medium d-flex align-items-center justify-content-between">
+                                        <div><i className="bi bi-person-check me-2"></i>Delegated to: {parcel.delegated_to_name}</div>
+                                        <button onClick={() => handleRevoke(parcel.parcel_id)} className="btn btn-sm btn-outline-info py-0">Revoke</button>
+                                    </div>
+                                )}
+                                {parcel.is_delegated_to_me && (
+                                    <div className="px-4 py-2 bg-success bg-opacity-10 text-success border-bottom border-success border-opacity-25 small fw-medium d-flex align-items-center gap-2">
+                                        <i className="bi bi-person-check-fill"></i>
+                                        Authorized by {parcel.resident_name} (Flat {parcel.flat_details?.number})
+                                    </div>
+                                )}
                                 <div className="p-4 text-center">
                                     <div className="text-muted text-uppercase fw-bold mb-2" style={{ fontSize: '0.7rem', letterSpacing: '0.1em' }}>SHOW THIS PIN AT GATEHOUSE</div>
                                     <div className="d-inline-block bg-white border border-2 border-primary rounded p-3 mb-3 mx-auto shadow-sm">
@@ -132,6 +197,13 @@ const ResidentDashboard = () => {
                                         <div className="alert alert-success mt-3 mb-0 py-2 px-3 small border-0 d-flex align-items-center justify-content-center rounded-3 text-start mx-auto" style={{ maxWidth: '350px' }}>
                                             <i className="bi bi-shield-check me-2 fs-4"></i>
                                             <span>Payment confirmed by gatehouse staff. No further payment required on pickup.</span>
+                                        </div>
+                                    )}
+                                    {!parcel.is_delegated && !parcel.is_delegated_to_me && (
+                                        <div className="mt-4 border-top pt-3">
+                                            <button onClick={() => openDelegateModal(parcel)} className="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-2">
+                                                <i className="bi bi-people"></i> Delegate Pickup
+                                            </button>
                                         </div>
                                     )}
                                 </div>
@@ -195,6 +267,60 @@ const ResidentDashboard = () => {
                     </div>
                 )}
             </div>
+
+            {/* Delegate Modal */}
+            {showDelegateModal && (
+                <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                    <div className="modal-dialog modal-dialog-centered">
+                        <div className="modal-content border-0 shadow">
+                            <div className="modal-header border-bottom-0 pb-0">
+                                <h5 className="modal-title fw-bold">Delegate Parcel Pickup</h5>
+                                <button type="button" className="btn-close" onClick={() => setShowDelegateModal(false)}></button>
+                            </div>
+                            <div className="modal-body">
+                                {selectedParcelForDelegate && (
+                                    <div className="mb-3 p-3 bg-light rounded text-sm">
+                                        <div className="fw-bold">{selectedParcelForDelegate.carrier_name}</div>
+                                        <div className="text-muted">ID: {selectedParcelForDelegate.parcel_id}</div>
+                                    </div>
+                                )}
+                                
+                                <p className="text-muted mb-2">Select a registered flatmate to authorize pickup:</p>
+                                
+                                {loadingFlatmates ? (
+                                    <div className="text-center py-4"><div className="spinner-border text-primary" role="status"></div></div>
+                                ) : flatmates.length === 0 ? (
+                                    <div className="alert alert-warning">No other registered residents are available in your flat.</div>
+                                ) : (
+                                    <select 
+                                        className="form-select mb-3" 
+                                        value={selectedFlatmate} 
+                                        onChange={(e) => setSelectedFlatmate(e.target.value)}
+                                    >
+                                        <option value="">-- Select Flatmate --</option>
+                                        {flatmates.map(f => (
+                                            <option key={f.id} value={f.id}>{f.first_name} {f.last_name}</option>
+                                        ))}
+                                    </select>
+                                )}
+                                
+                                {delegateError && <div className="alert alert-danger py-2">{delegateError}</div>}
+                            </div>
+                            <div className="modal-footer border-top-0 pt-0">
+                                <button type="button" className="btn btn-light" onClick={() => setShowDelegateModal(false)}>Cancel</button>
+                                <button 
+                                    type="button" 
+                                    className="gv-btn-primary" 
+                                    onClick={handleDelegate}
+                                    disabled={!selectedFlatmate || delegateLoading}
+                                >
+                                    {delegateLoading ? 'Authorizing...' : 'Authorize Pickup'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
