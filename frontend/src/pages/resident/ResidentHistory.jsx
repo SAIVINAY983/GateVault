@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../api/axiosInstance';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { LoadingSpinner, EmptyState, ErrorState } from '../../components/ui/StateComponents';
 
 const ResidentHistory = () => {
+    const navigate = useNavigate();
     const [history, setHistory] = useState([]);
+    const [feedbackMap, setFeedbackMap] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
@@ -12,11 +15,23 @@ const ResidentHistory = () => {
         try {
             setLoading(true);
             setError(false);
-            const res = await axiosInstance.get('resident/parcels/');
-            const filtered = res.data.filter(p => p.status === 'HANDED_OVER' || p.status === 'CANCELLED');
-            // Sort by most recently collected first
+            const [parcelsRes, feedbackRes] = await Promise.allSettled([
+                axiosInstance.get('resident/parcels/'),
+                axiosInstance.get('resident/feedback/')
+            ]);
+
+            const data = parcelsRes.status === 'fulfilled' && Array.isArray(parcelsRes.value?.data) ? parcelsRes.value.data : [];
+            const filtered = data.filter(p => p.status === 'HANDED_OVER' || p.status === 'DELIVERED_DIRECTLY_TO_FLAT' || p.status === 'CANCELLED');
             filtered.sort((a, b) => new Date(b.handed_over_at) - new Date(a.handed_over_at));
             setHistory(filtered);
+
+            if (feedbackRes.status === 'fulfilled' && Array.isArray(feedbackRes.value?.data)) {
+                const map = {};
+                feedbackRes.value.data.forEach(f => {
+                    if (f.parcel) map[f.parcel] = f;
+                });
+                setFeedbackMap(map);
+            }
         } catch (err) {
             setError(true);
         } finally {
@@ -53,7 +68,8 @@ const ResidentHistory = () => {
                                         <th className="py-3 fw-semibold border-bottom-0">Carrier</th>
                                         <th className="py-3 fw-semibold border-bottom-0">Received Time</th>
                                         <th className="py-3 fw-semibold border-bottom-0">Collected Time</th>
-                                        <th className="pe-4 py-3 fw-semibold border-bottom-0 text-end">Status</th>
+                                        <th className="py-3 fw-semibold border-bottom-0">Status</th>
+                                        <th className="pe-4 py-3 fw-semibold border-bottom-0 text-end">Feedback</th>
                                     </tr>
                                 </thead>
                                 <tbody className="border-top-0">
@@ -92,13 +108,37 @@ const ResidentHistory = () => {
                                                 <div className="d-flex flex-column">
                                                     <span>{cFormat}</span>
                                                     {parcel.collected_by_role_type === 'DELEGATED_FLATMATE' ? (
-                                                        <span className="text-info small fw-bold"><i className="bi bi-person-check"></i> {parcel.delegated_to_name}</span>
+                                                        <span className="text-info small fw-bold"><i className="bi bi-person-check"></i> {parcel.delegated_to_name} (Delegate)</span>
+                                                    ) : parcel.collected_by_role_type === 'HOUSEHOLD_MEMBER' || (parcel.actual_receiver_name && parcel.actual_receiver_name !== parcel.resident_name) ? (
+                                                        <span className="text-primary small fw-bold"><i className="bi bi-people-fill"></i> {parcel.actual_receiver_name || parcel.collected_by_name} {parcel.receiver_relationship ? `(${parcel.receiver_relationship})` : ''}</span>
                                                     ) : (
                                                         <span className="text-muted small">Me</span>
                                                     )}
+                                                    {parcel.delivery_location === 'DIRECT_TO_FLAT' && (
+                                                        <span className="text-success small" style={{ fontSize: '0.7rem' }}>
+                                                            <i className="bi bi-door-closed-fill"></i> Handed at Flat ({parcel.direct_delivery_verification || 'Doorstep'})
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </td>
-                                            <td className="pe-4 py-3 text-end"><StatusBadge status={parcel.status} /></td>
+                                            <td className="py-3"><StatusBadge status={parcel.status} /></td>
+                                            <td className="pe-4 py-3 text-end">
+                                                {feedbackMap[parcel.id] ? (
+                                                    <span className="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25" title="Feedback submitted">
+                                                        <i className="bi bi-star-fill text-warning me-1"></i>
+                                                        {feedbackMap[parcel.id].rating}★ Rated
+                                                    </span>
+                                                ) : parcel.status === 'HANDED_OVER' || parcel.status === 'DELIVERED_DIRECTLY_TO_FLAT' ? (
+                                                    <button
+                                                        onClick={() => navigate('/resident/feedback', { state: { rateParcelId: parcel.id } })}
+                                                        className="btn btn-outline-warning btn-sm fw-semibold"
+                                                    >
+                                                        <i className="bi bi-star me-1"></i> Rate
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-muted small">—</span>
+                                                )}
+                                            </td>
                                         </tr>
                                     )})}
                                 </tbody>
@@ -146,9 +186,39 @@ const ResidentHistory = () => {
                                     </div>
                                     <div className="d-flex align-items-center gap-2 text-muted small mt-1 ms-4">
                                         Collected By: <span className="text-dark fw-medium">
-                                            {parcel.collected_by_role_type === 'DELEGATED_FLATMATE' ? `${parcel.delegated_to_name} (Delegate)` : 'Me'}
+                                            {parcel.collected_by_role_type === 'DELEGATED_FLATMATE' ? (
+                                                `${parcel.delegated_to_name} (Delegate)`
+                                            ) : parcel.collected_by_role_type === 'HOUSEHOLD_MEMBER' || (parcel.actual_receiver_name && parcel.actual_receiver_name !== parcel.resident_name) ? (
+                                                `${parcel.actual_receiver_name || parcel.collected_by_name} (${parcel.receiver_relationship || 'Household'})`
+                                            ) : (
+                                                'Me'
+                                            )}
                                         </span>
                                     </div>
+                                    {parcel.delivery_location === 'DIRECT_TO_FLAT' && (
+                                        <div className="small text-success mt-1 ms-4">
+                                            <i className="bi bi-door-closed-fill me-1"></i>Handed at Flat ({parcel.direct_delivery_verification})
+                                        </div>
+                                    )}
+
+                                    {feedbackMap[parcel.id] ? (
+                                        <div className="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                                            <span className="small text-muted">Your Rating:</span>
+                                            <span className="badge bg-warning bg-opacity-10 text-dark">
+                                                <i className="bi bi-star-fill text-warning me-1"></i>
+                                                {feedbackMap[parcel.id].rating}★ Rated
+                                            </span>
+                                        </div>
+                                    ) : (parcel.status === 'HANDED_OVER' || parcel.status === 'DELIVERED_DIRECTLY_TO_FLAT') && (
+                                        <div className="mt-3 pt-2 border-top text-end">
+                                            <button
+                                                onClick={() => navigate('/resident/feedback', { state: { rateParcelId: parcel.id } })}
+                                                className="btn btn-warning btn-sm text-dark fw-bold w-100"
+                                            >
+                                                <i className="bi bi-star-fill me-1"></i> Rate Your Experience
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )})}

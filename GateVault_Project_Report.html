@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GateVault — Project Analysis & Status Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --primary: #0f172a;
+    --primary-light: #1e293b;
+    --accent: #2563eb;
+    --accent-light: #dbeafe;
+    --success: #059669;
+    --success-bg: #ecfdf5;
+    --warning: #d97706;
+    --warning-bg: #fffbeb;
+    --danger: #dc2626;
+    --danger-bg: #fef2f2;
+    --neutral-50: #f8fafc;
+    --neutral-100: #f1f5f9;
+    --neutral-200: #e2e8f0;
+    --neutral-300: #cbd5e1;
+    --neutral-600: #475569;
+    --neutral-700: #334155;
+    --neutral-900: #0f172a;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: var(--neutral-700);
+    background-color: #ffffff;
+    line-height: 1.55;
+    font-size: 13.5px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @page {
+    size: A4;
+    margin: 16mm 16mm 18mm 16mm;
+    @bottom-right {
+      content: "Page " counter(page);
+      font-size: 9px;
+      color: #94a3b8;
+    }
+  }
+
+  .page-break {
+    page-break-after: always;
+  }
+
+  /* Cover Page */
+  .cover-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 40px 20px 20px 20px;
+    background: linear-gradient(145deg, #0f172a 0%, #1e293b 60%, #1e3a8a 100%);
+    color: white;
+    border-radius: 12px;
+    page-break-after: always;
+  }
+
+  .cover-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .cover-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .cover-badge::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+  }
+
+  .cover-title-group {
+    margin-top: auto;
+    margin-bottom: auto;
+    padding: 30px 0;
+  }
+
+  .cover-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .cover-logo svg {
+    width: 44px;
+    height: 44px;
+    fill: #60a5fa;
+  }
+
+  .cover-logo span {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #ffffff;
+  }
+
+  .cover-title {
+    font-size: 38px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-bottom: 16px;
+    color: #f8fafc;
+  }
+
+  .cover-subtitle {
+    font-size: 16px;
+    color: #94a3b8;
+    max-width: 650px;
+    line-height: 1.6;
+    margin-bottom: 30px;
+    font-weight: 400;
+  }
+
+  .cover-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 20px;
+    border-radius: 10px;
+  }
+
+  .cover-meta-item .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: #94a3b8;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+
+  .cover-meta-item .value {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffffff;
+  }
+
+  /* Section Styling */
+  .header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid var(--neutral-200);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    margin-top: 10px;
+  }
+
+  .header-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--neutral-900);
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .header-tag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--neutral-100);
+    color: var(--neutral-600);
+    text-transform: uppercase;
+  }
+
+  h2 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--neutral-900);
+    margin: 22px 0 10px 0;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  h3 {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--neutral-900);
+    margin: 14px 0 6px 0;
+  }
+
+  p {
+    margin-bottom: 10px;
+    color: var(--neutral-700);
+  }
+
+  /* Metric Cards */
+  .grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .stat-card {
+    background: var(--neutral-50);
+    border: 1px solid var(--neutral-200);
+    border-radius: 8px;
+    padding: 14px;
+  }
+
+  .stat-card .stat-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--neutral-600);
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+  }
+
+  .stat-card .stat-value {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--neutral-900);
+    letter-spacing: -0.02em;
+  }
+
+  .stat-card .stat-sub {
+    font-size: 10.5px;
+    color: #64748b;
+    margin-top: 4px;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 18px 0;
+    font-size: 12px;
+  }
+
+  th {
+    background: var(--neutral-100);
+    color: var(--neutral-700);
+    font-weight: 700;
+    text-align: left;
+    padding: 8px 10px;
+    border: 1px solid var(--neutral-200);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  td {
+    padding: 7px 10px;
+    border: 1px solid var(--neutral-200);
+    color: var(--neutral-700);
+    vertical-align: middle;
+  }
+
+  tr:nth-child(even) td {
+    background-color: var(--neutral-50);
+  }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .badge-success { background: var(--success-bg); color: var(--success); border: 1px solid #a7f3d0; }
+  .badge-accent  { background: var(--accent-light); color: var(--accent); border: 1px solid #bfdbfe; }
+  .badge-warning { background: var(--warning-bg); color: var(--warning); border: 1px solid #fde68a; }
+  .badge-danger  { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecaca; }
+  .badge-neutral { background: var(--neutral-100); color: var(--neutral-600); border: 1px solid var(--neutral-200); }
+
+  /* Callout boxes */
+  .callout {
+    padding: 12px 14px;
+    border-radius: 6px;
+    margin: 14px 0;
+    border-left: 4px solid;
+    font-size: 12.5px;
+  }
+
+  .callout-info {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1e40af;
+  }
+
+  .callout-warning {
+    background: #fffbeb;
+    border-color: #f59e0b;
+    color: #92400e;
+  }
+
+  .callout-success {
+    background: #ecfdf5;
+    border-color: #10b981;
+    color: #065f46;
+  }
+
+  /* Workflow diagram container */
+  .flow-box {
+    background: #0f172a;
+    color: #f8fafc;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 14px 0 18px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    line-height: 1.6;
+  }
+
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .flow-num {
+    background: #2563eb;
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .flow-text strong {
+    color: #60a5fa;
+  }
+
+  /* Feature List Item */
+  .feature-item {
+    background: #ffffff;
+    border: 1px solid var(--neutral-200);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+
+  .feature-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .feature-title {
+    font-weight: 700;
+    font-size: 12.5px;
+    color: var(--neutral-900);
+  }
+
+  .feature-desc {
+    font-size: 11.5px;
+    color: var(--neutral-600);
+    line-height: 1.45;
+  }
+
+  /* Code pill */
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--neutral-100);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: #0f172a;
+    border: 1px solid var(--neutral-200);
+  }
+
+  .footer-note {
+    font-size: 10px;
+    color: #94a3b8;
+    text-align: center;
+    margin-top: 30px;
+    padding-top: 10px;
+    border-top: 1px solid var(--neutral-200);
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= COVER PAGE ================= -->
+<div class="cover-container">
+  <div class="cover-top">
+    <div class="cover-badge">System Audit & Architectural Analysis</div>
+    <div style="font-size: 12px; opacity: 0.8; font-family: 'JetBrains Mono', monospace;">CA2 • v1.0 • PRODUCTION GRADE</div>
+  </div>
+
+  <div class="cover-title-group">
+    <div class="cover-logo">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.67-3.13 9.04-7 10.18-3.87-1.14-7-5.51-7-10.18V6.3l7-3.12zm-1 5.82v6h2v-6h-2zm0 8v2h2v-2h-2z"/>
+      </svg>
+      <span>GateVault</span>
+    </div>
+    <h1 class="cover-title">Full-Stack Project Analysis<br/>& System Status Report</h1>
+    <p class="cover-subtitle">
+      A complete verifiable digital chain-of-custody platform for residential communities. Detailed architectural review, operational workflow audit, database schema inspection, and current progress report.
+    </p>
+  </div>
+
+  <div class="cover-meta-grid">
+    <div class="cover-meta-item">
+      <div class="label">Repository</div>
+      <div class="value">SAIVINAY983/GateVault</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">Git Branch & Commit</div>
+      <div class="value">main / 092ecaf</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">Backend Engine</div>
+      <div class="value">Django 6.1 • DRF • JWT</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">Frontend Engine</div>
+      <div class="value">React 19 • Vite • Recharts</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SECTION 1: EXECUTIVE SUMMARY ================= -->
+<div class="header-bar">
+  <div class="header-title">
+    <span>1. Executive Summary & Core Value Proposition</span>
+  </div>
+  <div class="header-tag">Overview</div>
+</div>
+
+<p>
+  <strong>GateVault</strong> is an enterprise-grade digital logistics and security platform engineered specifically for gated high-rise residential complexes. In modern communities, security gatehouses face hundreds of courier and food deliveries daily. Without an automated verification chain, properties suffer from gate congestion, lost or misplaced packages, unverified collections by unauthorized individuals, overflowing parcel shelves, and persistent resident inquiries.
+</p>
+
+<div class="grid-4">
+  <div class="stat-card">
+    <div class="stat-label">Active Roles</div>
+    <div class="stat-value">3 Types</div>
+    <div class="stat-sub">Admin, Guard, Resident</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Storage Tracking</div>
+    <div class="stat-value">20 Shelves</div>
+    <div class="stat-sub">Dynamic real-time occupancy</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Handover Auth</div>
+    <div class="stat-value">4-Digit PIN</div>
+    <div class="stat-sub">Cryptographic verification</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">System Readiness</div>
+    <div class="stat-value" style="color: var(--success);">100%</div>
+    <div class="stat-sub">All planned features online</div>
+  </div>
+</div>
+
+<h2>Core Solution: Verifiable Digital Chain of Custody</h2>
+<p>GateVault completely replaces physical paper delivery registers with an unbroken digital custody trail:</p>
+
+<div class="flow-box">
+  <div class="flow-step">
+    <span class="flow-num">1</span>
+    <span class="flow-text"><strong>Courier Arrival:</strong> Delivery agent arrives at gatehouse with parcel or food delivery.</span>
+  </div>
+  <div class="flow-step">
+    <span class="flow-num">2</span>
+    <span class="flow-text"><strong>Intake & Barcode Match:</strong> Guard scans/enters tracking number or performs fast manual intake (Tower & Flat).</span>
+  </div>
+  <div class="flow-step">
+    <span class="flow-num">3</span>
+    <span class="flow-text"><strong>Smart Shelf Assignment:</strong> System checks live capacity and assigns an available shelf slot (e.g., S-04).</span>
+  </div>
+  <div class="flow-step">
+    <span class="flow-num">4</span>
+    <span class="flow-text"><strong>Secure PIN Generation:</strong> Unique Parcel ID (GV-2026-XXXXXX) and private 4-digit PIN generated; resident notified.</span>
+  </div>
+  <div class="flow-step">
+    <span class="flow-num">5</span>
+    <span class="flow-text"><strong>Resident Verification:</strong> Resident (or authorized flatmate) presents the 4-digit PIN at the gate terminal.</span>
+  </div>
+  <div class="flow-step">
+    <span class="flow-num">6</span>
+    <span class="flow-text"><strong>Handover & Audit Logging:</strong> Guard confirms handover; immutable verification record logged with guard and timestamp.</span>
+  </div>
+</div>
+
+<div class="callout callout-success">
+  <strong>Key Architectural Achievement:</strong> Zero-state dependency. Occupancy is derived directly from live database parcel records rather than manually maintained counter fields, eliminating data drift or race-condition storage mismatches.
+</div>
+
+<!-- ================= SECTION 2: TECHNOLOGY STACK ================= -->
+<div class="page-break"></div>
+
+<div class="header-bar">
+  <div class="header-title">
+    <span>2. Technology Stack & Architecture</span>
+  </div>
+  <div class="header-tag">Architecture</div>
+</div>
+
+<p>The application is built on a decoupled Single-Page Application (SPA) architecture communicating with a robust Django REST Framework backend via token-authenticated RESTful endpoints.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Layer</th>
+      <th>Technology / Package</th>
+      <th>Version</th>
+      <th>Operational Role</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Frontend Core</strong></td>
+      <td>React</td>
+      <td><code>19.2.8</code></td>
+      <td>Component-driven responsive user interface</td>
+    </tr>
+    <tr>
+      <td><strong>Build Tool</strong></td>
+      <td>Vite</td>
+      <td><code>8.2.2</code></td>
+      <td>High-performance HMR and production asset bundling</td>
+    </tr>
+    <tr>
+      <td><strong>Routing & RBAC</strong></td>
+      <td>React Router DOM</td>
+      <td><code>7.18.3</code></td>
+      <td>Declarative client-side routing & role-based route guarding</td>
+    </tr>
+    <tr>
+      <td><strong>Styling & Design</strong></td>
+      <td>Bootstrap + Custom CSS</td>
+      <td><code>5.3.8</code></td>
+      <td>Tailored CSS design system with CSS custom properties (<code>--gv-*</code>)</td>
+    </tr>
+    <tr>
+      <td><strong>Data Visuals</strong></td>
+      <td>Recharts</td>
+      <td><code>3.10.1</code></td>
+      <td>Interactive analytics (Occupancy Donut & Carrier Bar Charts)</td>
+    </tr>
+    <tr>
+      <td><strong>Backend Framework</strong></td>
+      <td>Django</td>
+      <td><code>6.1.1 / 5.1</code></td>
+      <td>Enterprise Python web framework and ORM</td>
+    </tr>
+    <tr>
+      <td><strong>REST API Engine</strong></td>
+      <td>Django REST Framework</td>
+      <td><code>3.18.0</code></td>
+      <td>Model serializers, API viewsets, and JSON responses</td>
+    </tr>
+    <tr>
+      <td><strong>Authentication</strong></td>
+      <td>djangorestframework-simplejwt</td>
+      <td><code>5.5.1</code></td>
+      <td>Stateless JSON Web Tokens with embedded role payload</td>
+    </tr>
+    <tr>
+      <td><strong>Image Processing</strong></td>
+      <td>Pillow</td>
+      <td><code>12.3.0</code></td>
+      <td>Handling uploaded proof-of-delivery receipts and photos</td>
+    </tr>
+    <tr>
+      <td><strong>Database</strong></td>
+      <td>SQLite (Active) / MySQL</td>
+      <td><code>3.x / 8.x</code></td>
+      <td>Active runtime: <code>db.sqlite3</code> (282 KB) / MySQL supported via script</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>System Communication Architecture</h2>
+<div style="background: var(--neutral-50); border: 1px solid var(--neutral-200); border-radius: 8px; padding: 14px; margin: 12px 0 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+  [React 19 Frontend Client]<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ (Bearer JWT Authorization Header via Axios Interceptors)<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br/>
+  [Django REST Framework Engine / WhiteNoise Middleware]<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├──► [Custom Permissions: IsGuardUser / IsResidentUser / IsAdminUser]<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├──► [Serializers: ParcelSerializer / ExpectedDeliverySerializer]<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br/>
+  [Django ORM Layer ──► Foreign Key Cascades & Aggregations]<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br/>
+  [SQLite Active Database File: backend/db.sqlite3]
+</div>
+
+<!-- ================= SECTION 3: ROLE-BASED WORKFLOWS ================= -->
+<div class="page-break"></div>
+
+<div class="header-bar">
+  <div class="header-title">
+    <span>3. Operational Feature Breakdown ("Where We Are")</span>
+  </div>
+  <div class="header-tag">Feature Audit</div>
+</div>
+
+<p>Every planned role in the GateVault specification is fully implemented with high-fidelity UI components, strict backend permissions, and validation logic.</p>
+
+<div class="grid-3">
+  <div>
+    <h3 style="color: var(--accent);">👮 Security Guard Workflow</h3>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">Live Gatehouse Dashboard</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Displays real-time incoming delivery feed, overdue packages (>48h), and active expected arrivals.</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">Barcode & Tracking Lookup</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Scans or searches tracking numbers to instantly link pre-registered deliveries by residents.</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">COD & Cash Reconciliation</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Validates Cash or UPI payment to courier before assigning parcel storage slots.</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">Open-Box Inspection Protocol</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Handles gate inspection; logs direct resident handover or courier rescheduling on damaged items.</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">PIN Pickup Verification</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Validates resident 4-digit PIN, confirms collector identity, logs handover audit, and frees shelf slot.</div>
+    </div>
+  </div>
+
+  <div>
+    <h3 style="color: var(--success);">🏡 Resident Workflow</h3>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">Resident Portal Dashboard</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Personalized view of packages awaiting collection, delivery photos, carrier names, and timestamps.</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">Digital Pickup Pass (PIN)</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">High-contrast secure 4-digit pass presented at gatehouse collection.</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">Pre-Register Deliveries</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Residents notify security in advance with tracking ID, courier, COD amount, and receipt photo upload.</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">Flatmate Pickup Delegation</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Allows authorized flatmates to collect packages using in-app delegation; revokable anytime.</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">Notification Center</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">In-app alerts for new arrivals, overdue warnings (>48h), food deliveries, and handovers.</div>
+    </div>
+  </div>
+
+  <div>
+    <h3 style="color: var(--warning);">📊 Community Administrator</h3>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">Real-Time Operations KPIs</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Total volume, pending queue, daily handovers, and overdue parcel tally.</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">Storage Utilization Donut</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Visual breakdown of occupied vs available storage capacity across all 20 gatehouse shelves.</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">Carrier Volume Breakdown</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Recharts bar chart analyzing delivery traffic from Amazon, Flipkart, Swiggy, Delhivery, etc.</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">Global Parcel Audit Log</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Searchable master history with multi-filter controls (Status, Carrier, Tower, Resident, Flat).</div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-header">
+        <span class="feature-title">User & Guard Management</span>
+        <span class="badge badge-success">Online</span>
+      </div>
+      <div class="feature-desc">Provision guards, register residents, assign flats, and toggle account activation status.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SECTION 4: DATABASE & MIGRATIONS ================= -->
+<div class="page-break"></div>
+
+<div class="header-bar">
+  <div class="header-title">
+    <span>4. Database Schema & Migration Trajectory</span>
+  </div>
+  <div class="header-tag">Database Schema</div>
+</div>
+
+<p>The backend data model in <code>backend/api/models.py</code> reflects progressive refinement through 8 migrations:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Migration File</th>
+      <th>Key Structural Additions</th>
+      <th>Architectural Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>0001_initial.py</code></td>
+      <td>User, Tower, Flat, ResidentProfile, GuardProfile, Carrier, StorageShelf, Parcel, PickupVerification</td>
+      <td>Core domain entities and initial relational schema.</td>
+    </tr>
+    <tr>
+      <td><code>0002_remove_storageshelf_occupied...</code></td>
+      <td>Added <code>delivery_type</code> (Normal/Food), removed manual counter field</td>
+      <td>Introduced dynamic property-based shelf occupancy calculation.</td>
+    </tr>
+    <tr>
+      <td><code>0003_expecteddelivery.py</code></td>
+      <td>New <code>ExpectedDelivery</code> model</td>
+      <td>Allowed residents to pre-announce deliveries and upload bills.</td>
+    </tr>
+    <tr>
+      <td><code>0004_parcel_expected_delivery.py</code></td>
+      <td>1-to-1 link between <code>Parcel</code> and <code>ExpectedDelivery</code></td>
+      <td>Allowed incoming parcels to fulfill registered expected deliveries.</td>
+    </tr>
+    <tr>
+      <td><code>0005_parcel_cod_amount...</code></td>
+      <td>Added COD fields (<code>cod_amount</code>, <code>cod_status</code>)</td>
+      <td>Initial groundwork for cash-on-delivery tracking.</td>
+    </tr>
+    <tr>
+      <td><code>0006_remove_parcel_cod_status...</code></td>
+      <td>Refined COD choices (<code>payment_method</code>, <code>payment_status</code>, confirmation audit)</td>
+      <td>Complete reconciliation flow (Cash vs UPI to courier).</td>
+    </tr>
+    <tr>
+      <td><code>0007_expecteddelivery_is_open_box...</code></td>
+      <td>Open-box fields & resolution choices</td>
+      <td>Workflow for fragile / high-value inspected parcels.</td>
+    </tr>
+    <tr>
+      <td><code>0008_parcel_collected_by...</code></td>
+      <td>Delegation fields (<code>delegated_to</code>, <code>collected_by</code>, role type)</td>
+      <td>Enables flatmates/family to collect deliveries securely.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Core Entity Relationships (ERD)</h2>
+<div style="background: var(--neutral-50); border: 1px solid var(--neutral-200); border-radius: 8px; padding: 14px; font-size: 11.5px; line-height: 1.6;">
+  • <strong>User</strong> (1) ── (1) <strong>ResidentProfile</strong> ── (N:1) ──► <strong>Flat</strong> ── (N:1) ──► <strong>Tower</strong><br/>
+  • <strong>User</strong> (1) ── (1) <strong>GuardProfile</strong><br/>
+  • <strong>Parcel</strong> (N:1) ──► <strong>Flat</strong>, <strong>User</strong> (Resident), <strong>Carrier</strong>, <strong>StorageShelf</strong><br/>
+  • <strong>Parcel</strong> (1:1) ──► <strong>PickupVerification</strong> (logs guard + exact timestamp)<br/>
+  • <strong>ExpectedDelivery</strong> (1:1 optional) ──► <strong>Parcel</strong><br/>
+  • <strong>Notification</strong> (N:1) ──► <strong>User</strong> (tied to Parcel lifecycle events)
+</div>
+
+<!-- ================= SECTION 5: DISCREPANCIES & AUDIT ================= -->
+<div class="header-bar" style="margin-top: 25px;">
+  <div class="header-title">
+    <span>5. Technical Audit, Discrepancies & Recommendations</span>
+  </div>
+  <div class="header-tag">Audit Findings</div>
+</div>
+
+<div class="callout callout-warning">
+  <strong>1. Database Engine Mismatch (SQLite vs MySQL):</strong><br/>
+  The file <code>setup_db.py</code> and <code>backend/.env</code> specify MySQL credentials (<code>DB_NAME=gatevault</code>, <code>DB_USER=root</code>, <code>DB_PASSWORD=Saivinay2027</code>). However, <code>settings.py</code> is explicitly configured to use SQLite:
+  <br/>
+  <code>DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'db.sqlite3'}}</code><br/>
+  <strong>Impact:</strong> The application is currently operating flawlessly on SQLite using <code>backend/db.sqlite3</code> (282 KB). To switch to MySQL, update <code>settings.py</code> to read the <code>.env</code> database configuration and ensure the MySQL service is active.
+</div>
+
+<div class="callout callout-info">
+  <strong>2. Demo Data Execution Syntax:</strong><br/>
+  The project <code>README.md</code> references running <code>python generate_demo_data.py</code>. Because the script is structured as a Django management command in <code>api/management/commands/generate_demo_data.py</code>, it should be executed using:
+  <br/>
+  <code>python manage.py generate_demo_data</code>
+</div>
+
+<!-- ================= SECTION 6: DEMO CREDENTIALS & NEXT STEPS ================= -->
+<div class="page-break"></div>
+
+<div class="header-bar">
+  <div class="header-title">
+    <span>6. Verification, Demo Accounts & Action Items</span>
+  </div>
+  <div class="header-tag">Action Plan</div>
+</div>
+
+<p>For testing, demonstration, and evaluation, the following pre-seeded credentials are provisioned in the database:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>User Role</th>
+      <th>Username</th>
+      <th>Password</th>
+      <th>Assigned Permissions & Landing URL</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="badge badge-warning">Admin</span></td>
+      <td><code>admin</code></td>
+      <td><code>adminpass</code></td>
+      <td>Full dashboard metrics, audit history, user management (<code>/admin</code>)</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-accent">Security Guard</span></td>
+      <td><code>guard1</code></td>
+      <td><code>guardpass</code></td>
+      <td>Intake terminal, shelf assignment, PIN verification (<code>/guard</code>)</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-success">Resident</span></td>
+      <td><code>resident1</code></td>
+      <td><code>respass</code></td>
+      <td>Pending parcel pass, expected deliveries, delegation (<code>/resident</code>)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Recommended Next Steps</h2>
+<ol style="margin-left: 20px; line-height: 1.8; color: var(--neutral-700);">
+  <li><strong>Keep or Migrate SQLite:</strong> Keep SQLite for lightweight zero-setup testing and development; or enable MySQL if multi-guard concurrent writes are required.</li>
+  <li><strong>Start Development Servers:</strong>
+    <br/>Backend terminal: <code>cd backend && python manage.py runserver</code>
+    <br/>Frontend terminal: <code>cd frontend && npm run dev</code>
+  </li>
+  <li><strong>Verify Media Upload Serving:</strong> Ensure uploaded receipt photos in <code>ExpectedDelivery</code> are served via <code>django.conf.urls.static</code> during local runs.</li>
+  <li><strong>Production Build Validation:</strong> Run <code>npm run build</code> in <code>frontend/</code> to verify zero build-time syntax or lint warnings.</li>
+</ol>
+
+<div class="footer-note">
+  GateVault • Designed & Developed for Gated Residential Communities • Generated on October 22, 2026
+</div>
+
+</body>
+</html>

@@ -1,0 +1,2 @@
+# Keep backups directory tracked in git while ignoring .sqlite3 database snapshots
+

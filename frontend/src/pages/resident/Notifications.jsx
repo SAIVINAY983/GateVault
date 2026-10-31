@@ -46,6 +46,8 @@ const Notifications = () => {
             case 'FOOD_DELIVERY': return <i className="bi bi-cup-straw text-warning fs-3"></i>;
             case 'OVERDUE': return <i className="bi bi-exclamation-triangle-fill text-danger fs-3"></i>;
             case 'HANDOVER': return <i className="bi bi-check-circle-fill text-success fs-3"></i>;
+            case 'CONDITION_ALERT': return <i className="bi bi-shield-slash text-danger fs-3"></i>;
+            case 'INCIDENT_UPDATE': return <i className="bi bi-shield-exclamation text-info fs-3"></i>;
             default: return <i className="bi bi-bell text-muted fs-3"></i>;
         }
     };

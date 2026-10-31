@@ -4,8 +4,11 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import { LoadingSpinner, EmptyState, ErrorState } from '../../components/ui/StateComponents';
 
 const AdminHistory = () => {
+    const [activeTab, setActiveTab] = useState('PARCELS');
     const [history, setHistory] = useState([]);
+    const [guestPickups, setGuestPickups] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadingGuest, setLoadingGuest] = useState(false);
     const [error, setError] = useState('');
     
     // Filters
@@ -19,10 +22,22 @@ const AdminHistory = () => {
             try {
                 setLoading(true);
                 setError('');
-                const res = await axiosInstance.get('admin/parcel-history/');
-                setHistory(res.data);
+                const [resHistory, resGuest] = await Promise.allSettled([
+                    axiosInstance.get('admin/parcel-history/'),
+                    axiosInstance.get('admin/guest-pickups/')
+                ]);
+
+                if (resHistory.status === 'fulfilled') {
+                    setHistory(resHistory.value.data);
+                } else {
+                    setError('Failed to load parcel history');
+                }
+
+                if (resGuest.status === 'fulfilled') {
+                    setGuestPickups(Array.isArray(resGuest.value.data) ? resGuest.value.data : []);
+                }
             } catch (err) {
-                setError('Failed to load parcel history');
+                setError('Failed to load history data');
             } finally {
                 setLoading(false);
             }
@@ -44,6 +59,7 @@ const AdminHistory = () => {
             if (statusFilter === 'PENDING' && (p.status !== 'AWAITING_PICKUP' || p.is_overdue)) return false;
             if (statusFilter === 'OVERDUE' && !p.is_overdue) return false;
             if (statusFilter === 'HANDED_OVER' && p.status !== 'HANDED_OVER') return false;
+            if (statusFilter === 'DIRECT_TO_FLAT' && p.status !== 'DELIVERED_DIRECTLY_TO_FLAT') return false;
         }
         
         // Carrier Filter
@@ -70,12 +86,33 @@ const AdminHistory = () => {
 
     return (
         <div className="container-fluid px-0">
-            <div className="mb-4">
-                <h2 className="fw-bold text-dark mb-1">Parcel History</h2>
-                <p className="text-muted">Complete audit log of all gatehouse parcel activity.</p>
+            <div className="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 className="fw-bold text-dark mb-1">Parcel & Handover History</h2>
+                    <p className="text-muted">Complete audit log of all gatehouse parcel activity and temporary guest authorizations.</p>
+                </div>
+                <div className="nav nav-pills bg-light p-1 rounded-3 border">
+                    <button
+                        className={`nav-link px-3 py-2 fw-semibold d-flex align-items-center gap-2 ${activeTab === 'PARCELS' ? 'active shadow-xs' : 'text-muted'}`}
+                        onClick={() => setActiveTab('PARCELS')}
+                    >
+                        <i className="bi bi-box-seam"></i>
+                        <span>Parcels History</span>
+                        <span className="badge bg-light text-dark ms-1">{history.length}</span>
+                    </button>
+                    <button
+                        className={`nav-link px-3 py-2 fw-semibold d-flex align-items-center gap-2 ${activeTab === 'GUEST_PICKUPS' ? 'active shadow-xs' : 'text-muted'}`}
+                        onClick={() => setActiveTab('GUEST_PICKUPS')}
+                    >
+                        <i className="bi bi-person-badge"></i>
+                        <span>Guest Passes Audit</span>
+                        <span className="badge bg-light text-dark ms-1">{guestPickups.length}</span>
+                    </button>
+                </div>
             </div>
             
-            <div className="gv-card overflow-hidden">
+            {activeTab === 'PARCELS' && (
+                <div className="gv-card overflow-hidden">
                 <div className="card-header bg-white p-4 border-bottom">
                     <div className="row g-3">
                         <div className="col-12 col-md-4">
@@ -97,7 +134,8 @@ const AdminHistory = () => {
                                 <option value="ALL">All Statuses</option>
                                 <option value="PENDING">Pending</option>
                                 <option value="OVERDUE">Overdue</option>
-                                <option value="HANDED_OVER">Completed</option>
+                                <option value="HANDED_OVER">Handed Over</option>
+                                <option value="DIRECT_TO_FLAT">Direct to Flat</option>
                             </select>
                         </div>
                         <div className="col-12 col-sm-4 col-md-3">
@@ -146,6 +184,16 @@ const AdminHistory = () => {
                                             </div>
                                         )}
                                         <div className="text-muted small mt-1">Flat {p.flat_details?.number} ({p.flat_details?.tower_name})</div>
+                                        {p.actual_receiver_name && p.actual_receiver_name !== p.resident_name && (
+                                            <div className="text-primary small fw-semibold mt-1">
+                                                <i className="bi bi-people-fill me-1"></i>Receiver: {p.actual_receiver_name} {p.receiver_relationship ? `(${p.receiver_relationship})` : ''}
+                                            </div>
+                                        )}
+                                        {p.delivery_location === 'DIRECT_TO_FLAT' && (
+                                            <div className="text-success small" style={{ fontSize: '0.75rem' }}>
+                                                <i className="bi bi-door-closed-fill me-1"></i>Direct Handover ({p.direct_delivery_verification})
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="py-3">
                                         <div className="small text-muted mb-1">
@@ -181,6 +229,114 @@ const AdminHistory = () => {
                     </div>
                 )}
             </div>
+            )}
+
+            {activeTab === 'GUEST_PICKUPS' && (
+                <div className="gv-card overflow-hidden">
+                    <div className="card-header bg-white p-4 border-bottom d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 className="fw-bold text-dark mb-0">Temporary Guest Pickup Passes Audit</h5>
+                            <small className="text-muted">History of one-time guest passes generated by residents and handover records.</small>
+                        </div>
+                        <span className="badge bg-primary px-3 py-2">{guestPickups.length} Total Passes</span>
+                    </div>
+
+                    <div className="table-responsive">
+                        <table className="table table-hover align-middle mb-0 border-0">
+                            <thead className="bg-light text-muted small text-uppercase" style={{ letterSpacing: '0.05em' }}>
+                                <tr>
+                                    <th className="ps-4 py-3 fw-semibold border-bottom-0">Pass Code & Status</th>
+                                    <th className="py-3 fw-semibold border-bottom-0">Parcel Details</th>
+                                    <th className="py-3 fw-semibold border-bottom-0">Resident Owner</th>
+                                    <th className="py-3 fw-semibold border-bottom-0">Authorized Guest</th>
+                                    <th className="py-3 fw-semibold border-bottom-0">Collection & Verification</th>
+                                </tr>
+                            </thead>
+                            <tbody className="border-top-0">
+                                {guestPickups.map(auth => (
+                                    <tr key={auth.id}>
+                                        <td className="ps-4 py-3">
+                                            <div className="fw-bold font-monospace text-dark fs-6">{auth.pass_code}</div>
+                                            <div className="mt-1">
+                                                {auth.status === 'ACTIVE' && (
+                                                    <span className="badge bg-success">Active</span>
+                                                )}
+                                                {auth.status === 'USED' && (
+                                                    <span className="badge bg-secondary">Used / Handed Over</span>
+                                                )}
+                                                {auth.status === 'REVOKED' && (
+                                                    <span className="badge bg-danger">Revoked</span>
+                                                )}
+                                                {auth.status === 'EXPIRED' && (
+                                                    <span className="badge bg-warning text-dark">Expired</span>
+                                                )}
+                                            </div>
+                                            <div className="text-muted small mt-1" style={{ fontSize: '0.7rem' }}>
+                                                Expires: {new Date(auth.expires_at).toLocaleString()}
+                                            </div>
+                                        </td>
+                                        <td className="py-3">
+                                            <div className="fw-bold text-primary">{auth.parcel_id_str}</div>
+                                            <div className="text-muted small">{auth.carrier_name}</div>
+                                            <div className="text-muted small">Flat {auth.flat_number} ({auth.tower_name})</div>
+                                        </td>
+                                        <td className="py-3">
+                                            <div className="fw-bold text-dark">{auth.resident_name}</div>
+                                            <div className="text-muted small" style={{ fontSize: '0.7rem' }}>
+                                                Created: {new Date(auth.created_at).toLocaleString()}
+                                            </div>
+                                        </td>
+                                        <td className="py-3">
+                                            <div className="fw-bold text-dark">{auth.guest_name}</div>
+                                            <div className="text-muted small"><i className="bi bi-telephone me-1"></i>{auth.guest_mobile}</div>
+                                            <span className="badge bg-light text-primary border" style={{ fontSize: '0.65rem' }}>
+                                                {auth.relationship_display}
+                                            </span>
+                                            {auth.instructions && (
+                                                <div className="small text-muted mt-1 fst-italic">"{auth.instructions}"</div>
+                                            )}
+                                        </td>
+                                        <td className="py-3">
+                                            {auth.status === 'USED' ? (
+                                                <div>
+                                                    <div className="text-success fw-bold small">
+                                                        <i className="bi bi-check-circle-fill me-1"></i>Collected by: {auth.actual_collector_name || auth.guest_name}
+                                                    </div>
+                                                    <div className="small text-muted" style={{ fontSize: '0.75rem' }}>
+                                                        Guard: <strong>{auth.verified_by_guard_name || 'Guard'}</strong>
+                                                    </div>
+                                                    <div className="small text-muted" style={{ fontSize: '0.75rem' }}>
+                                                        Time: {auth.used_at ? new Date(auth.used_at).toLocaleString() : '-'}
+                                                    </div>
+                                                </div>
+                                            ) : auth.status === 'REVOKED' ? (
+                                                <div className="text-danger small">
+                                                    Revoked {auth.revoked_at ? `on ${new Date(auth.revoked_at).toLocaleString()}` : ''}
+                                                    {auth.revoked_by_name && ` by ${auth.revoked_by_name}`}
+                                                </div>
+                                            ) : (
+                                                <div className="text-muted small">
+                                                    {auth.verified_by_guard_name ? `Verified by ${auth.verified_by_guard_name}` : 'Awaiting guest pickup'}
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {guestPickups.length === 0 && (
+                        <div className="p-5 border-top">
+                            <EmptyState 
+                                icon="bi-person-badge" 
+                                title="No guest pickup passes found" 
+                                message="No temporary guest pickup passes have been generated by residents yet." 
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

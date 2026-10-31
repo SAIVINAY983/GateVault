@@ -4,7 +4,7 @@ import axios from 'axios';
 
 // Since the user is not authenticated yet, we use a raw axios instance directly hitting the API URL.
 const publicAxios = axios.create({
-    baseURL: 'http://localhost:8000/api/',
+    baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/',
     headers: { 'Content-Type': 'application/json' }
 });
 

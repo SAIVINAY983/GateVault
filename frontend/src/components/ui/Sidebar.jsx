@@ -68,7 +68,15 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     {user?.role === 'ADMIN' && (
                         <>
                             <NavLink to="/admin" icon="bi-grid-1x2-fill" label="Dashboard" />
+                            <NavLink to="/admin/alerts" icon="bi-exclamation-octagon-fill" label="Priority Alerts" />
+                            <NavLink to="/admin/feedback" icon="bi-star-half" label="Community Feedback" />
+                            <NavLink to="/admin/shelves" icon="bi-bookshelf" label="Smart Shelves" />
+                            <NavLink to="/admin/policies" icon="bi-sliders" label="Delivery Policies" />
+                            <NavLink to="/admin/shifts" icon="bi-person-badge-fill" label="Guard Shifts" />
+                            <NavLink to="/admin/incidents" icon="bi-shield-exclamation" label="Incident Management" />
                             <NavLink to="/admin/history" icon="bi-clock-history" label="Parcel History" />
+                            <NavLink to="/admin/courier-visits" icon="bi-truck-flatbed" label="Courier Visits" />
+                            <NavLink to="/admin/reports" icon="bi-file-earmark-bar-graph" label="Reports & Backups" />
                             <NavLink to="/admin/users" icon="bi-people-fill" label="User Management" />
                         </>
                     )}
@@ -76,14 +84,19 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     {user?.role === 'GUARD' && (
                         <>
                             <NavLink to="/guard" icon="bi-list-ul" label="Dashboard" />
+                            <NavLink to="/guard/alerts" icon="bi-exclamation-octagon-fill" label="Priority Alerts" />
+                            <NavLink to="/guard/calendar" icon="bi-calendar3" label="Delivery Calendar" />
                             <NavLink to="/guard/intake" icon="bi-box-seam-fill" label="Receive Parcel" primary />
                             <NavLink to="/guard/verify" icon="bi-qr-code-scan" label="Verify Pickup" />
+                            <NavLink to="/guard/couriers" icon="bi-truck" label="Courier Log" />
                         </>
                     )}
 
                     {user?.role === 'RESIDENT' && (
                         <>
                             <NavLink to="/resident" icon="bi-grid-1x2-fill" label="My Dashboard" />
+                            <NavLink to="/resident/feedback" icon="bi-star-half" label="My Feedback" />
+                            <NavLink to="/resident/household" icon="bi-people-fill" label="My Household" />
                             <NavLink to="/resident/send-delivery" icon="bi-calendar-plus" label="Send Delivery Details" />
                             <NavLink to="/resident/history" icon="bi-clock-history" label="Delivery History" />
                         </>

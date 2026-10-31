@@ -9,6 +9,18 @@ const StatusBadge = ({ status, isOverdue }) => {
         colorClass = 'bg-success text-white';
         label = 'Handed Over';
         icon = 'bi-check-circle-fill';
+    } else if (status === 'DELIVERED_DIRECTLY_TO_FLAT') {
+        colorClass = 'bg-info text-dark';
+        label = 'Direct to Flat';
+        icon = 'bi-house-check-fill';
+    } else if (status === 'DELIVERY_ATTEMPTED') {
+        colorClass = 'bg-danger text-white';
+        label = 'Delivery Attempted';
+        icon = 'bi-arrow-return-left';
+    } else if (status === 'RECEIVED_AT_GATEHOUSE') {
+        colorClass = 'bg-primary text-white';
+        label = 'At Gatehouse';
+        icon = 'bi-box-seam';
     } else if (isOverdue) {
         colorClass = 'bg-danger text-white';
         label = 'Overdue';

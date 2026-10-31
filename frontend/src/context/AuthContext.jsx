@@ -42,7 +42,8 @@ export const AuthProvider = ({ children }) => {
                 id: user.id,
                 username: user.username,
                 role: user.role,
-                name: user.name
+                name: user.name,
+                is_primary: user.is_primary !== undefined ? user.is_primary : true
             };
 
             localStorage.setItem('access_token', access);
