@@ -32,7 +32,9 @@ from .views import (
     AdminFeedbackListView, AdminFeedbackAnalyticsView,
     AdminFeedbackRespondView, AdminFeedbackReviewView,
     AdminReportsSummaryView, AdminReportDetailView, AdminReportExportView,
-    AdminDatabaseBackupCreateView, AdminDatabaseBackupListView, AdminDatabaseBackupDownloadView
+    AdminDatabaseBackupCreateView, AdminDatabaseBackupListView, AdminDatabaseBackupDownloadView,
+    GoogleOAuthLoginView, GoogleResidentRegisterView, ResidentLinkGoogleView,
+    AdminResidentApprovalsListView, AdminResidentApproveView, AdminResidentRejectView
 )
 
 router = DefaultRouter()
@@ -47,6 +49,14 @@ urlpatterns = [
     path('auth/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/register/', PublicResidentRegisterView.as_view(), name='register_resident'),
+    path('auth/google/', GoogleOAuthLoginView.as_view(), name='google-oauth-login'),
+    path('auth/google/register/', GoogleResidentRegisterView.as_view(), name='google-resident-register'),
+    path('resident/link-google/', ResidentLinkGoogleView.as_view(), name='resident-link-google'),
+
+    # Admin Resident Approvals
+    path('admin/resident-approvals/', AdminResidentApprovalsListView.as_view(), name='admin-resident-approvals'),
+    path('admin/resident-approvals/<int:pk>/approve/', AdminResidentApproveView.as_view(), name='admin-resident-approve'),
+    path('admin/resident-approvals/<int:pk>/reject/', AdminResidentRejectView.as_view(), name='admin-resident-reject'),
 
     # Smart Shelf Management URLs (Precedes router shelf viewset)
     path('shelves/recommend/', ShelfRecommendationView.as_view(), name='shelf-recommend'),

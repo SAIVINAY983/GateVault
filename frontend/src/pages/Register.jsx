@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import { AuthContext } from '../context/AuthContext';
+import GoogleLoginButton from '../components/auth/GoogleLoginButton';
+import ResidentGoogleOnboardingModal from '../components/auth/ResidentGoogleOnboardingModal';
 
-// Since the user is not authenticated yet, we use a raw axios instance directly hitting the API URL.
+// Raw axios instance for public unauthenticated endpoints
 const publicAxios = axios.create({
     baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/',
     headers: { 'Content-Type': 'application/json' }
@@ -10,6 +13,7 @@ const publicAxios = axios.create({
 
 const Register = () => {
     const navigate = useNavigate();
+    const { googleAuth } = useContext(AuthContext);
     
     const [formData, setFormData] = useState({
         first_name: '',
@@ -30,17 +34,16 @@ const Register = () => {
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
 
+    // Google Onboarding State
+    const [showOnboarding, setShowOnboarding] = useState(false);
+    const [registrationToken, setRegistrationToken] = useState('');
+    const [googleUser, setGoogleUser] = useState(null);
+    const [googleNotice, setGoogleNotice] = useState(null);
+
     useEffect(() => {
-        // Fetch towers for public registration (Requires Towers API to be public, but let's see)
-        // If Towers API is currently protected, the backend should ideally allow public access to Tower/Flat list,
-        // or we use the auth token if we somehow have it. However, the user request says: 
-        // "If a suitable endpoint does not exist, create the minimum required Django API." 
-        // But the previous config in views.py has `permission_classes = [IsAuthenticated]` for TowerViewSet.
-        // I will temporarily catch errors and inform the user if it fails, but I will modify the backend in the next step to allow public viewing of Towers/Flats for registration.
-        
         publicAxios.get('towers/')
             .then(res => setTowers(res.data))
-            .catch(err => console.error("Could not load towers. Backend may require authentication adjustment.", err));
+            .catch(err => console.error("Could not load towers:", err));
     }, []);
 
     useEffect(() => {
@@ -57,6 +60,7 @@ const Register = () => {
         e.preventDefault();
         setError('');
         setSuccess('');
+        setGoogleNotice(null);
 
         if (formData.password !== formData.confirm_password) {
             return setError('Passwords do not match.');
@@ -64,7 +68,7 @@ const Register = () => {
 
         setLoading(true);
         try {
-            const res = await publicAxios.post('auth/register/', {
+            await publicAxios.post('auth/register/', {
                 first_name: formData.first_name,
                 last_name: formData.last_name,
                 username: formData.username,
@@ -74,17 +78,59 @@ const Register = () => {
                 role: 'RESIDENT'
             });
             
-            setSuccess('Account created successfully.');
+            setSuccess('Registration submitted successfully! Your account is pending Community Admin approval. You will be redirected to the sign-in page.');
             setFormData({ first_name: '', last_name: '', username: '', email: '', password: '', confirm_password: '', tower: '', flat_id: '' });
             setTimeout(() => {
                 navigate('/login');
-            }, 2000);
+            }, 2500);
             
         } catch (err) {
             setError(err.response?.data?.username?.[0] || err.response?.data?.error || 'Failed to create account. Please check your details.');
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleGoogleSuccess = async (idToken) => {
+        setError('');
+        setSuccess('');
+        setGoogleNotice(null);
+
+        const res = await googleAuth(idToken);
+        if (res.success) {
+            if (res.action === 'LOGIN') {
+                navigate('/resident');
+            } else if (res.action === 'REGISTER_REQUIRED') {
+                setRegistrationToken(res.registration_token);
+                setGoogleUser(res.google_user);
+                setShowOnboarding(true);
+            } else if (res.action === 'PENDING_APPROVAL') {
+                setGoogleNotice({
+                    type: 'warning',
+                    title: 'Account Already Registered',
+                    message: res.message || 'Your resident account is currently pending Community Admin approval.'
+                });
+            }
+        } else {
+            if (res.action === 'REJECTED') {
+                setGoogleNotice({
+                    type: 'danger',
+                    title: 'Registration Rejected',
+                    message: res.message || `Reason: ${res.rejection_reason || 'Please contact administration.'}`
+                });
+            } else {
+                setError(res.message);
+            }
+        }
+    };
+
+    const handleOnboardingComplete = (data) => {
+        setShowOnboarding(false);
+        setGoogleNotice({
+            type: 'success',
+            title: 'Registration Submitted',
+            message: data.message || 'Your resident profile has been submitted and is currently pending approval by the Community Admin.'
+        });
     };
 
     return (
@@ -155,9 +201,19 @@ const Register = () => {
 
                 <div className="mx-auto w-100 py-3" style={{maxWidth: '480px'}}>
                     <div className="mb-4">
-                        <h2 className="fw-bold text-dark mb-2">Create your GateVault account</h2>
-                        <p className="text-muted">Register as a resident to manage and securely collect your parcels.</p>
+                        <h2 className="fw-bold text-dark mb-1">Create resident account</h2>
+                        <p className="text-muted">Register to securely receive and verify parcels at your gatehouse.</p>
                     </div>
+
+                    {/* Google Notice */}
+                    {googleNotice && (
+                        <div className={`alert alert-${googleNotice.type} border-0 rounded-3 mb-4 p-3 shadow-sm`}>
+                            <h6 className="fw-bold mb-1 d-flex align-items-center gap-2">
+                                <i className="bi bi-info-circle-fill"></i> {googleNotice.title}
+                            </h6>
+                            <p className="small mb-0">{googleNotice.message}</p>
+                        </div>
+                    )}
 
                     {error && (
                         <div className="alert alert-danger d-flex align-items-center gap-2 border-0 bg-danger bg-opacity-10 text-danger mb-4 rounded-3 p-3">
@@ -176,6 +232,29 @@ const Register = () => {
                         </div>
                     )}
 
+                    {/* Google Fast Sign-up Option */}
+                    <div className="mb-4">
+                        <div className="text-muted small fw-semibold mb-2">
+                            <i className="bi bi-google text-danger me-1"></i> Fast Sign-Up with Verified Google Account
+                        </div>
+                        <GoogleLoginButton
+                            onSuccess={handleGoogleSuccess}
+                            onError={(err) => setError(err)}
+                            text="Sign up with Google"
+                            disabled={loading}
+                        />
+                    </div>
+
+                    {/* Divider */}
+                    <div className="d-flex align-items-center my-4">
+                        <hr className="flex-grow-1 my-0 text-muted" />
+                        <span className="px-3 text-muted small fw-medium text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>
+                            Or register manually
+                        </span>
+                        <hr className="flex-grow-1 my-0 text-muted" />
+                    </div>
+
+                    {/* Manual Form */}
                     <form onSubmit={handleSubmit}>
                         <div className="row g-3 mb-3">
                             <div className="col-6">
@@ -249,6 +328,15 @@ const Register = () => {
                 </div>
             </div>
             </div>
+
+            {/* Resident Google Profile Onboarding Modal */}
+            <ResidentGoogleOnboardingModal
+                show={showOnboarding}
+                googleUser={googleUser}
+                registrationToken={registrationToken}
+                onClose={() => setShowOnboarding(false)}
+                onComplete={handleOnboardingComplete}
+            />
         </div>
     );
 };

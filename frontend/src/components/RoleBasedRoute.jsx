@@ -10,6 +10,11 @@ const RoleBasedRoute = ({ children, allowedRoles }) => {
         return <Navigate to="/login" replace />;
     }
 
+    // Security check: Block pending or rejected residents from accessing parcel and resident features
+    if (user.role === 'RESIDENT' && user.approval_status && user.approval_status !== 'APPROVED') {
+        return <Navigate to="/pending-approval" replace />;
+    }
+
     if (!allowedRoles.includes(user.role)) {
         // Logged in but doesn't have the right role, redirect to appropriate dashboard
         switch (user.role) {

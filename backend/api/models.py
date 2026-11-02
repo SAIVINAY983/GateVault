@@ -33,13 +33,24 @@ class Flat(models.Model):
         return f"{self.tower.name}-{self.number}"
 
 class ResidentProfile(models.Model):
+    APPROVAL_STATUS_CHOICES = (
+        ('PENDING_APPROVAL', 'Pending Approval'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    )
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='resident_profile')
     flat = models.ForeignKey(Flat, on_delete=models.SET_NULL, null=True, related_name='residents')
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     is_primary = models.BooleanField(default=True, help_text="Designates primary resident who can authorize household members")
+    approval_status = models.CharField(max_length=20, choices=APPROVAL_STATUS_CHOICES, default='APPROVED')
+    google_id = models.CharField(max_length=255, blank=True, null=True, unique=True, db_index=True)
+    rejection_reason = models.TextField(blank=True, null=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_residents')
+    approved_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
-        return f"Resident: {self.user.get_full_name() or self.user.username}"
+        return f"Resident: {self.user.get_full_name() or self.user.username} ({self.approval_status})"
 
 class GuardProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='guard_profile')
@@ -283,6 +294,9 @@ class Notification(models.Model):
         ('FEEDBACK_REVIEWED', 'Feedback Reviewed'),
         ('FEEDBACK_RESPONSE', 'Feedback Response'),
         ('DATABASE_BACKUP', 'Database Backup Notification'),
+        ('REGISTRATION_PENDING', 'Resident Registration Pending Approval'),
+        ('REGISTRATION_APPROVED', 'Resident Registration Approved'),
+        ('REGISTRATION_REJECTED', 'Resident Registration Rejected'),
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
     title = models.CharField(max_length=200)

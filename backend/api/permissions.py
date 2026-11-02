@@ -10,7 +10,16 @@ class IsGuardUser(permissions.BasePermission):
 
 class IsResidentUser(permissions.BasePermission):
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.role == 'RESIDENT')
+        if not (request.user and request.user.is_authenticated and request.user.role == 'RESIDENT'):
+            return False
+        # Block pending and rejected residents from accessing parcel and resident features
+        try:
+            profile = getattr(request.user, 'resident_profile', None)
+            if profile and profile.approval_status != 'APPROVED':
+                return False
+        except Exception:
+            pass
+        return True
 
 class IsPrimaryResident(permissions.BasePermission):
     def has_permission(self, request, view):

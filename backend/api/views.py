@@ -10,6 +10,7 @@ from django.db.models import Count, Q, Avg
 from django.db.models.functions import TruncMonth
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 import secrets
 import hashlib
 import json
@@ -37,8 +38,9 @@ from .serializers import (
     CourierVisitSerializer, CourierVisitEntrySerializer,
     PriorityAlertSerializer, PriorityAlertCreateSerializer, AlertHistorySerializer,
     CommunityFeedbackSerializer, CommunityFeedbackCreateSerializer, CommunityFeedbackUpdateSerializer,
-    DatabaseBackupSerializer
+    DatabaseBackupSerializer, ResidentApprovalSerializer
 )
+from .oauth import verify_google_id_token, create_registration_token, verify_registration_token
 from .reports import (
     parse_report_filters, build_report_data,
     generate_csv_report, generate_excel_report, generate_pdf_report,
@@ -87,18 +89,36 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         data = super().validate(attrs)
         is_primary = True
+        approval_status = 'APPROVED'
+        tower_name = None
+        flat_number = None
+        rejection_reason = None
         if self.user.role == 'RESIDENT':
             try:
-                is_primary = self.user.resident_profile.is_primary
+                profile = getattr(self.user, 'resident_profile', None)
+                if profile:
+                    is_primary = profile.is_primary
+                    approval_status = getattr(profile, 'approval_status', 'APPROVED')
+                    rejection_reason = getattr(profile, 'rejection_reason', None)
+                    if profile.flat:
+                        flat_number = profile.flat.number
+                        if profile.flat.tower:
+                            tower_name = profile.flat.tower.name
             except Exception:
                 is_primary = True
+                approval_status = 'APPROVED'
 
         data['user'] = {
             'id': self.user.id,
             'username': self.user.username,
+            'email': self.user.email,
             'role': self.user.role,
             'name': self.user.get_full_name() or self.user.username,
-            'is_primary': is_primary
+            'is_primary': is_primary,
+            'approval_status': approval_status,
+            'rejection_reason': rejection_reason,
+            'tower': tower_name,
+            'flat': flat_number
         }
         return data
 
@@ -114,7 +134,11 @@ class PublicResidentRegisterView(generics.CreateAPIView):
         if serializer.is_valid():
             user = serializer.save()
             return Response(
-                {"message": "Resident account created successfully.", "username": user.username},
+                {
+                    "message": "Resident registration submitted successfully. Your account is pending Community Admin approval.",
+                    "username": user.username,
+                    "approval_status": "PENDING_APPROVAL"
+                },
                 status=status.HTTP_201_CREATED
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -972,9 +996,15 @@ class AdminUserManagementViewSet(viewsets.ViewSet):
         return Response(serializer.data)
 
     def create_resident(self, request):
-        serializer = CreateResidentSerializer(data=request.data)
+        serializer = CreateResidentSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             user = serializer.save()
+            profile = getattr(user, 'resident_profile', None)
+            if profile and profile.approval_status != 'APPROVED':
+                profile.approval_status = 'APPROVED'
+                profile.approved_by = request.user
+                profile.approved_at = timezone.now()
+                profile.save(update_fields=['approval_status', 'approved_by', 'approved_at'])
             return Response(
                 {"message": "Resident created successfully", "user": AdminUserListSerializer(user).data},
                 status=status.HTTP_201_CREATED
@@ -5109,6 +5139,393 @@ class AdminDatabaseBackupDownloadView(views.APIView):
             return response
         except Exception as e:
             return Response({"error": f"Failed to read backup file: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ==============================================================================
+# Google OAuth 2.0 & Resident Approval Views
+# ==============================================================================
+
+class GoogleOAuthLoginView(views.APIView):
+    """
+    Secure Google OAuth 2.0 / OpenID Connect authentication endpoint.
+    Exclusively available for Residents. Rejects Guards and Administrators.
+    Verifies Google ID token server-side without trusting client claims.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        id_token = request.data.get('id_token')
+        if not id_token:
+            return Response(
+                {"error": "Missing Google ID token in request."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            google_data = verify_google_id_token(id_token)
+        except ValueError as exc:
+            return Response(
+                {"error": str(exc), "code": "INVALID_GOOGLE_TOKEN"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        email = google_data['email']
+        google_id = google_data['google_id']
+        name = google_data['name']
+
+        # 1. Search for existing user by verified Google email or google_id
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            user = User.objects.filter(resident_profile__google_id=google_id).first()
+
+        if user:
+            # Enforce Resident exclusivity: Security Guards and Admins cannot authenticate via Google
+            if user.role != 'RESIDENT':
+                return Response({
+                    "error": "Google OAuth is exclusively available for Residents. Security Guards and Administrators must sign in using their GateVault username and password.",
+                    "code": "ROLE_NOT_PERMITTED"
+                }, status=status.HTTP_403_FORBIDDEN)
+
+            # Ensure resident profile exists
+            profile = getattr(user, 'resident_profile', None)
+            if not profile:
+                flat = Flat.objects.first()
+                profile = ResidentProfile.objects.create(user=user, flat=flat, approval_status='APPROVED')
+
+            # Link Google ID if not already set
+            if not profile.google_id:
+                conflict = ResidentProfile.objects.filter(google_id=google_id).exclude(pk=profile.pk).first()
+                if conflict:
+                    return Response({
+                        "error": "This Google account is already linked to another resident profile.",
+                        "code": "GOOGLE_ACCOUNT_ALREADY_LINKED"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                profile.google_id = google_id
+                profile.save(update_fields=['google_id'])
+
+            approval_status = getattr(profile, 'approval_status', 'APPROVED')
+
+            # Handle approval state
+            if approval_status == 'PENDING_APPROVAL':
+                return Response({
+                    "action": "PENDING_APPROVAL",
+                    "message": "Your GateVault resident registration has been submitted and is currently pending approval by the Community Admin.",
+                    "user": {
+                        "id": user.id,
+                        "email": user.email,
+                        "username": user.username,
+                        "name": user.get_full_name() or user.username,
+                        "role": user.role,
+                        "approval_status": "PENDING_APPROVAL",
+                        "tower": profile.flat.tower.name if profile.flat else None,
+                        "flat": profile.flat.number if profile.flat else None,
+                    }
+                }, status=status.HTTP_200_OK)
+
+            if approval_status == 'REJECTED':
+                return Response({
+                    "action": "REJECTED",
+                    "message": f"Your resident registration was rejected: {profile.rejection_reason or 'Please contact community administration.'}",
+                    "rejection_reason": profile.rejection_reason,
+                    "user": {
+                        "id": user.id,
+                        "email": user.email,
+                        "username": user.username,
+                        "name": user.get_full_name() or user.username,
+                        "role": user.role,
+                        "approval_status": "REJECTED"
+                    }
+                }, status=status.HTTP_200_OK)
+
+            # User is APPROVED: Issue Simple JWT tokens
+            refresh = RefreshToken.for_user(user)
+            refresh['username'] = user.username
+            refresh['role'] = user.role
+            refresh['name'] = user.get_full_name() or user.username
+            refresh['is_primary'] = profile.is_primary
+
+            return Response({
+                "action": "LOGIN",
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role,
+                    "name": user.get_full_name() or user.username,
+                    "is_primary": profile.is_primary,
+                    "approval_status": "APPROVED",
+                    "tower": profile.flat.tower.name if profile.flat else None,
+                    "flat": profile.flat.number if profile.flat else None,
+                    "google_linked": True
+                }
+            }, status=status.HTTP_200_OK)
+
+        # 2. User does not exist: Initiate resident onboarding with signed tamper-proof token
+        reg_token = create_registration_token(google_data)
+        return Response({
+            "action": "REGISTER_REQUIRED",
+            "registration_token": reg_token,
+            "google_user": {
+                "email": google_data['email'],
+                "name": google_data['name'],
+                "given_name": google_data.get('given_name', ''),
+                "family_name": google_data.get('family_name', ''),
+                "picture": google_data.get('picture')
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class GoogleResidentRegisterView(views.APIView):
+    """
+    Onboarding registration endpoint for new residents authenticated via Google.
+    Accepts signed tamper-proof registration token and flat selection.
+    Strictly forbids Room Number (GateVault uses Tower and Flat).
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        reg_token = request.data.get('registration_token')
+        tower_id = request.data.get('tower_id')
+        flat_id = request.data.get('flat_id')
+        phone_number = request.data.get('phone_number', '').strip()
+
+        if not reg_token:
+            return Response(
+                {"error": "Missing registration token."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            google_data = verify_registration_token(reg_token)
+        except ValueError as exc:
+            return Response(
+                {"error": str(exc), "code": "INVALID_REGISTRATION_TOKEN"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        email = google_data['email']
+        google_id = google_data['google_id']
+        first_name = google_data.get('first_name', '')
+        last_name = google_data.get('last_name', '')
+        full_name = google_data.get('full_name', '')
+
+        # Check existing user
+        if User.objects.filter(email__iexact=email).exists():
+            return Response(
+                {"error": "An account with this email already exists. Please log in directly."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if ResidentProfile.objects.filter(google_id=google_id).exists():
+            return Response(
+                {"error": "This Google account is already registered. Please log in directly."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate Tower and Flat
+        if not tower_id or not flat_id:
+            return Response(
+                {"error": "Tower and Flat Number selection are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            tower = Tower.objects.get(pk=tower_id)
+        except Tower.DoesNotExist:
+            return Response({"error": "Selected Tower does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            flat = Flat.objects.get(pk=flat_id, tower=tower)
+        except Flat.DoesNotExist:
+            return Response({"error": "Selected Flat does not exist in the specified Tower."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create unique username
+        base_username = email.split('@')[0]
+        candidate_username = base_username
+        idx = 1
+        while User.objects.filter(username=candidate_username).exists():
+            candidate_username = f"{base_username}{idx}"
+            idx += 1
+
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=candidate_username,
+                email=email,
+                first_name=first_name or '',
+                last_name=last_name or '',
+                role='RESIDENT',
+                is_active=True
+            )
+            user.set_unusable_password()
+            user.save()
+
+            profile = ResidentProfile.objects.create(
+                user=user,
+                flat=flat,
+                phone_number=phone_number,
+                approval_status='PENDING_APPROVAL',
+                google_id=google_id
+            )
+
+            # Notify Community Admins
+            admin_users = User.objects.filter(role='ADMIN')
+            admin_notifs = [
+                Notification(
+                    user=admin,
+                    title="New Resident Registration Pending Approval",
+                    message=f"New resident {full_name or user.username} ({user.email}) registered for Tower {tower.name}, Flat {flat.number}. Approval required.",
+                    notification_type='REGISTRATION_PENDING'
+                )
+                for admin in admin_users
+            ]
+            if admin_notifs:
+                Notification.objects.bulk_create(admin_notifs)
+
+        return Response({
+            "action": "PENDING_APPROVAL",
+            "message": "Your resident registration has been submitted and is pending Community Admin approval.",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "name": user.get_full_name() or user.username,
+                "role": user.role,
+                "approval_status": "PENDING_APPROVAL",
+                "tower": tower.name,
+                "flat": flat.number
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+class ResidentLinkGoogleView(views.APIView):
+    """
+    Allows an authenticated resident to securely link their Google account
+    to their existing GateVault resident profile.
+    """
+    permission_classes = [IsAuthenticated, IsResidentUser]
+
+    def post(self, request, *args, **kwargs):
+        id_token = request.data.get('id_token')
+        if not id_token:
+            return Response({"error": "Google ID token is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            google_data = verify_google_id_token(id_token)
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        google_id = google_data['google_id']
+        profile = getattr(request.user, 'resident_profile', None)
+        if not profile:
+            return Response({"error": "Resident profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if profile.google_id == google_id:
+            return Response({
+                "message": "This Google account is already linked to your profile.",
+                "google_linked": True
+            }, status=status.HTTP_200_OK)
+
+        # Check if another profile already uses this google_id
+        conflict = ResidentProfile.objects.filter(google_id=google_id).exclude(pk=profile.pk).first()
+        if conflict:
+            return Response({
+                "error": "This Google account is already linked to another resident.",
+                "code": "GOOGLE_ACCOUNT_ALREADY_LINKED"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        profile.google_id = google_id
+        profile.save(update_fields=['google_id'])
+
+        return Response({
+            "message": "Google account successfully linked to your GateVault profile.",
+            "google_linked": True
+        }, status=status.HTTP_200_OK)
+
+
+class AdminResidentApprovalsListView(generics.ListAPIView):
+    """
+    List resident profiles for Community Admin approval management.
+    Supports filtering by ?status=PENDING_APPROVAL | APPROVED | REJECTED.
+    """
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    serializer_class = ResidentApprovalSerializer
+
+    def get_queryset(self):
+        qs = ResidentProfile.objects.select_related('user', 'flat', 'flat__tower', 'approved_by').order_by('-user__date_joined')
+        status_filter = self.request.query_params.get('status')
+        if status_filter and status_filter.upper() in ('PENDING_APPROVAL', 'APPROVED', 'REJECTED'):
+            qs = qs.filter(approval_status=status_filter.upper())
+        return qs
+
+
+class AdminResidentApproveView(views.APIView):
+    """
+    Community Admin action to approve a pending resident profile.
+    Grants access to resident dashboard and parcels, sends confirmation notification.
+    """
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request, pk=None, *args, **kwargs):
+        profile_id = pk or kwargs.get('pk')
+        try:
+            profile = ResidentProfile.objects.select_related('user', 'flat', 'flat__tower').get(pk=profile_id)
+        except ResidentProfile.DoesNotExist:
+            return Response({"error": "Resident profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        profile.approval_status = 'APPROVED'
+        profile.approved_by = request.user
+        profile.approved_at = timezone.now()
+        profile.rejection_reason = None
+        profile.save(update_fields=['approval_status', 'approved_by', 'approved_at', 'rejection_reason'])
+
+        # Notify Resident
+        tower_name = profile.flat.tower.name if profile.flat else ''
+        flat_num = profile.flat.number if profile.flat else ''
+        Notification.objects.create(
+            user=profile.user,
+            title="GateVault Registration Approved",
+            message=f"Welcome to GateVault! Your resident profile for Tower {tower_name}, Flat {flat_num} has been approved by the Community Admin.",
+            notification_type='REGISTRATION_APPROVED'
+        )
+
+        return Response({
+            "message": f"Resident {profile.user.get_full_name() or profile.user.username} approved successfully.",
+            "profile": ResidentApprovalSerializer(profile).data
+        }, status=status.HTTP_200_OK)
+
+
+class AdminResidentRejectView(views.APIView):
+    """
+    Community Admin action to reject a resident profile with a specified reason.
+    """
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request, pk=None, *args, **kwargs):
+        profile_id = pk or kwargs.get('pk')
+        try:
+            profile = ResidentProfile.objects.select_related('user', 'flat', 'flat__tower').get(pk=profile_id)
+        except ResidentProfile.DoesNotExist:
+            return Response({"error": "Resident profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        reason = request.data.get('reason', '').strip() or "Tower and flat verification was not successful. Please contact the management office."
+        profile.approval_status = 'REJECTED'
+        profile.rejection_reason = reason
+        profile.save(update_fields=['approval_status', 'rejection_reason'])
+
+        # Notify Resident
+        Notification.objects.create(
+            user=profile.user,
+            title="GateVault Registration Not Approved",
+            message=f"Your resident registration was rejected: {reason}",
+            notification_type='REGISTRATION_REJECTED'
+        )
+
+        return Response({
+            "message": "Resident registration rejected.",
+            "profile": ResidentApprovalSerializer(profile).data
+        }, status=status.HTTP_200_OK)
+
 
 
 

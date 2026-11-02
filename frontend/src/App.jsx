@@ -30,6 +30,7 @@ import MyHousehold from './pages/resident/MyHousehold';
 import MyFeedback from './pages/resident/MyFeedback';
 import Notifications from './pages/resident/Notifications';
 import SendDeliveryDetails from './pages/resident/SendDeliveryDetails';
+import PendingApprovalNotice from './pages/resident/PendingApprovalNotice';
 import Landing from './pages/landing/Landing';
 
 function App() {
@@ -40,6 +41,7 @@ function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/pending-approval" element={<PendingApprovalNotice />} />
           
           {/* Protected Routes inside Layout */}
           <Route element={<AppLayout />}>

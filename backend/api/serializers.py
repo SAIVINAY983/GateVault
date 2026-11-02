@@ -226,10 +226,12 @@ class FlatmateSerializer(serializers.ModelSerializer):
 class AdminUserListSerializer(serializers.ModelSerializer):
     flat_details = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
+    approval_status = serializers.SerializerMethodField()
+    google_linked = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'flat_details', 'status']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'flat_details', 'status', 'approval_status', 'google_linked']
 
     def get_flat_details(self, obj):
         if obj.role == 'RESIDENT':
@@ -245,6 +247,55 @@ class AdminUserListSerializer(serializers.ModelSerializer):
 
     def get_status(self, obj):
         return "Active" if obj.is_active else "Inactive"
+
+    def get_approval_status(self, obj):
+        if obj.role == 'RESIDENT':
+            try:
+                return obj.resident_profile.approval_status
+            except Exception:
+                return 'APPROVED'
+        return 'APPROVED'
+
+    def get_google_linked(self, obj):
+        if obj.role == 'RESIDENT':
+            try:
+                return bool(obj.resident_profile.google_id)
+            except Exception:
+                return False
+        return False
+
+
+class ResidentApprovalSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.CharField(source='user.email', read_only=True)
+    first_name = serializers.CharField(source='user.first_name', read_only=True)
+    last_name = serializers.CharField(source='user.last_name', read_only=True)
+    full_name = serializers.SerializerMethodField()
+    tower_name = serializers.CharField(source='flat.tower.name', read_only=True)
+    flat_number = serializers.CharField(source='flat.number', read_only=True)
+    date_joined = serializers.DateTimeField(source='user.date_joined', read_only=True)
+    google_linked = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ResidentProfile
+        fields = [
+            'id', 'user_id', 'username', 'email', 'first_name', 'last_name', 'full_name',
+            'phone_number', 'flat_id', 'tower_name', 'flat_number', 'approval_status',
+            'google_linked', 'rejection_reason', 'date_joined', 'approved_by_name', 'approved_at'
+        ]
+
+    def get_full_name(self, obj):
+        return obj.user.get_full_name() or obj.user.username
+
+    def get_google_linked(self, obj):
+        return bool(obj.google_id)
+
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return obj.approved_by.get_full_name() or obj.approved_by.username
+        return None
 
 
 class CreateResidentSerializer(serializers.ModelSerializer):
@@ -273,7 +324,37 @@ class CreateResidentSerializer(serializers.ModelSerializer):
             role='RESIDENT'
         )
         
-        ResidentProfile.objects.create(user=user, flat=flat)
+        # Check context if created by admin directly
+        request = self.context.get('request')
+        is_admin_creation = bool(request and request.user and request.user.is_authenticated and request.user.role == 'ADMIN')
+        
+        approval_status = 'APPROVED' if is_admin_creation else 'PENDING_APPROVAL'
+        approved_by = request.user if is_admin_creation else None
+        approved_at = timezone.now() if is_admin_creation else None
+
+        profile = ResidentProfile.objects.create(
+            user=user,
+            flat=flat,
+            approval_status=approval_status,
+            approved_by=approved_by,
+            approved_at=approved_at
+        )
+
+        if not is_admin_creation:
+            # Notify Community Admins of new pending registration
+            admin_users = User.objects.filter(role='ADMIN')
+            admin_notifs = [
+                Notification(
+                    user=admin,
+                    title="New Resident Registration Pending Approval",
+                    message=f"New resident {user.get_full_name() or user.username} ({user.email or 'No email'}) registered for Tower {flat.tower.name if flat.tower else ''}, Flat {flat.number}. Approval required.",
+                    notification_type='REGISTRATION_PENDING'
+                )
+                for admin in admin_users
+            ]
+            if admin_notifs:
+                Notification.objects.bulk_create(admin_notifs)
+
         return user
 
 

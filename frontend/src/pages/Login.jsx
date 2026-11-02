@@ -1,9 +1,11 @@
 import React, { useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import GoogleLoginButton from '../components/auth/GoogleLoginButton';
+import ResidentGoogleOnboardingModal from '../components/auth/ResidentGoogleOnboardingModal';
 
 const Login = () => {
-    const { login } = useContext(AuthContext);
+    const { login, googleAuth } = useContext(AuthContext);
     const navigate = useNavigate();
     
     const [username, setUsername] = useState('');
@@ -12,14 +14,26 @@ const Login = () => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
+    // Google OAuth State
+    const [showOnboarding, setShowOnboarding] = useState(false);
+    const [registrationToken, setRegistrationToken] = useState('');
+    const [googleUser, setGoogleUser] = useState(null);
+    const [googleNotice, setGoogleNotice] = useState(null);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setGoogleNotice(null);
         setLoading(true);
 
         const result = await login(username, password);
         
         if (result.success) {
+            if (result.role === 'RESIDENT' && result.approval_status && result.approval_status !== 'APPROVED') {
+                navigate('/pending-approval');
+                return;
+            }
+
             switch (result.role) {
                 case 'ADMIN': navigate('/admin'); break;
                 case 'GUARD': navigate('/guard'); break;
@@ -30,6 +44,47 @@ const Login = () => {
             setError(result.message);
         }
         setLoading(false);
+    };
+
+    const handleGoogleSuccess = async (idToken) => {
+        setError('');
+        setGoogleNotice(null);
+
+        const res = await googleAuth(idToken);
+        if (res.success) {
+            if (res.action === 'LOGIN') {
+                navigate('/resident');
+            } else if (res.action === 'REGISTER_REQUIRED') {
+                setRegistrationToken(res.registration_token);
+                setGoogleUser(res.google_user);
+                setShowOnboarding(true);
+            } else if (res.action === 'PENDING_APPROVAL') {
+                setGoogleNotice({
+                    type: 'warning',
+                    title: 'Registration Pending Approval',
+                    message: res.message || 'Your resident registration is awaiting Community Admin approval.'
+                });
+            }
+        } else {
+            if (res.action === 'REJECTED') {
+                setGoogleNotice({
+                    type: 'danger',
+                    title: 'Registration Rejected',
+                    message: res.message || `Reason: ${res.rejection_reason || 'Please contact administration.'}`
+                });
+            } else {
+                setError(res.message);
+            }
+        }
+    };
+
+    const handleOnboardingComplete = (data) => {
+        setShowOnboarding(false);
+        setGoogleNotice({
+            type: 'info',
+            title: 'Registration Submitted',
+            message: data.message || 'Your resident profile has been submitted and is currently pending approval by the Community Admin.'
+        });
     };
 
     return (
@@ -90,9 +145,9 @@ const Login = () => {
             </div>
 
             {/* Right Column: Login Form */}
-            <div className="col-12 col-lg-6 d-flex flex-column justify-content-center bg-white p-4 p-md-5">
+            <div className="col-12 col-lg-6 d-flex flex-column justify-content-center bg-white p-4 p-md-5 overflow-auto">
                 {/* Mobile Branding */}
-                <div className="d-lg-none text-center mb-5 mt-3">
+                <div className="d-lg-none text-center mb-4 mt-2">
                     <Link to="/" className="text-decoration-none d-flex align-items-center justify-content-center gap-2">
                         <i className="bi bi-shield-check fs-2 text-primary"></i>
                         <span className="fs-3 fw-bold text-dark tracking-tight">GateVault</span>
@@ -100,10 +155,20 @@ const Login = () => {
                 </div>
 
                 <div className="mx-auto w-100" style={{maxWidth: '420px'}}>
-                    <div className="mb-5">
-                        <h2 className="fw-bold text-dark mb-2">Welcome back</h2>
+                    <div className="mb-4">
+                        <h2 className="fw-bold text-dark mb-1">Welcome back</h2>
                         <p className="text-muted">Sign in to your GateVault account.</p>
                     </div>
+
+                    {/* Google Notice (Pending / Rejected / Submitted) */}
+                    {googleNotice && (
+                        <div className={`alert alert-${googleNotice.type} border-0 rounded-3 mb-4 p-3 shadow-sm`}>
+                            <h6 className="fw-bold mb-1 d-flex align-items-center gap-2">
+                                <i className="bi bi-info-circle-fill"></i> {googleNotice.title}
+                            </h6>
+                            <p className="small mb-0">{googleNotice.message}</p>
+                        </div>
+                    )}
 
                     {error && (
                         <div className="alert alert-danger d-flex align-items-center gap-2 border-0 bg-danger bg-opacity-10 text-danger mb-4 rounded-3 p-3">
@@ -112,8 +177,31 @@ const Login = () => {
                         </div>
                     )}
 
+                    {/* Resident Google OAuth Button */}
+                    <div className="mb-4">
+                        <div className="text-muted small fw-semibold mb-2">
+                            <i className="bi bi-person-heart text-primary me-1"></i> Residents Quick Sign-In
+                        </div>
+                        <GoogleLoginButton
+                            onSuccess={handleGoogleSuccess}
+                            onError={(err) => setError(err)}
+                            text="Continue with Google"
+                            disabled={loading}
+                        />
+                    </div>
+
+                    {/* Divider */}
+                    <div className="d-flex align-items-center my-4">
+                        <hr className="flex-grow-1 my-0 text-muted" />
+                        <span className="px-3 text-muted small fw-medium text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>
+                            Or sign in with username
+                        </span>
+                        <hr className="flex-grow-1 my-0 text-muted" />
+                    </div>
+
+                    {/* Standard Credentials Form */}
                     <form onSubmit={handleSubmit}>
-                        <div className="mb-4">
+                        <div className="mb-3">
                             <label className="form-label small fw-semibold text-dark">Username</label>
                             <div className="input-group">
                                 <span className="input-group-text bg-light border-end-0">
@@ -156,13 +244,13 @@ const Login = () => {
 
                         <button 
                             type="submit" 
-                            className="btn btn-primary w-100 py-3 fw-bold rounded-3 mb-4 shadow-sm"
+                            className="btn btn-primary w-100 py-3 fw-bold rounded-3 mb-3 shadow-sm"
                             disabled={loading}
                             style={{background: 'var(--gv-primary)'}}
                         >
                             {loading ? (
                                 <><span className="spinner-border spinner-border-sm me-2"></span>Authenticating...</>
-                            ) : 'Login'}
+                            ) : 'Sign In'}
                         </button>
                     </form>
 
@@ -170,8 +258,8 @@ const Login = () => {
                         Don't have an account? <Link to="/register" className="text-primary fw-semibold text-decoration-none ms-1">Create Resident Account</Link>
                     </div>
 
-                    <div className="mt-5 p-4 bg-light rounded-4 text-center border">
-                        <span className="small fw-bold text-muted text-uppercase d-block mb-3" style={{letterSpacing: '0.05em'}}>Demo Quick-Fill</span>
+                    <div className="mt-4 p-3 bg-light rounded-4 text-center border">
+                        <span className="small fw-bold text-muted text-uppercase d-block mb-2" style={{letterSpacing: '0.05em', fontSize: '0.72rem'}}>Demo Quick-Fill</span>
                         <div className="d-flex justify-content-center gap-2 flex-wrap">
                             <button type="button" className="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold" onClick={() => { setUsername('admin'); setPassword('adminpass'); }}>
                                 Admin
@@ -187,6 +275,15 @@ const Login = () => {
                 </div>
             </div>
             </div>
+
+            {/* Resident Google Profile Onboarding Modal */}
+            <ResidentGoogleOnboardingModal
+                show={showOnboarding}
+                googleUser={googleUser}
+                registrationToken={registrationToken}
+                onClose={() => setShowOnboarding(false)}
+                onComplete={handleOnboardingComplete}
+            />
         </div>
     );
 };
