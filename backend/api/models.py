@@ -32,6 +32,47 @@ class Flat(models.Model):
     def __str__(self):
         return f"{self.tower.name}-{self.number}"
 
+    @staticmethod
+    def parse_floor(number_str):
+        """
+        Derives floor number from flat string number.
+        Ground floor ('G001'-'G004') -> 0.
+        Floors 1-15 ('101'-'104' -> 1, '1401'-'1404' -> 14, '1501'-'1504' -> 15).
+        """
+        if not number_str:
+            return None
+        cleaned = str(number_str).strip().upper()
+        if cleaned.startswith('G'):
+            return 0
+        try:
+            if len(cleaned) >= 3:
+                return int(cleaned[:-2])
+            return int(cleaned)
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
+    def get_floor_display_name(floor_num):
+        if floor_num is None:
+            return "Unknown Floor"
+        if floor_num == 0:
+            return "Ground Floor"
+        if floor_num == 1:
+            return "1st Floor"
+        if floor_num == 2:
+            return "2nd Floor"
+        if floor_num == 3:
+            return "3rd Floor"
+        return f"{floor_num}th Floor"
+
+    @property
+    def floor_number(self):
+        return Flat.parse_floor(self.number)
+
+    @property
+    def floor_name(self):
+        return Flat.get_floor_display_name(self.floor_number)
+
 class ResidentProfile(models.Model):
     APPROVAL_STATUS_CHOICES = (
         ('PENDING_APPROVAL', 'Pending Approval'),

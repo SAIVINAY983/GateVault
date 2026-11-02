@@ -68,6 +68,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     {user?.role === 'ADMIN' && (
                         <>
                             <NavLink to="/admin" icon="bi-grid-1x2-fill" label="Dashboard" />
+                            <NavLink to="/admin/community" icon="bi-buildings-fill" label="Community Overview" />
                             <NavLink to="/admin/alerts" icon="bi-exclamation-octagon-fill" label="Priority Alerts" />
                             <NavLink to="/admin/feedback" icon="bi-star-half" label="Community Feedback" />
                             <NavLink to="/admin/shelves" icon="bi-bookshelf" label="Smart Shelves" />

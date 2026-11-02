@@ -34,7 +34,8 @@ from .views import (
     AdminReportsSummaryView, AdminReportDetailView, AdminReportExportView,
     AdminDatabaseBackupCreateView, AdminDatabaseBackupListView, AdminDatabaseBackupDownloadView,
     GoogleOAuthLoginView, GoogleResidentRegisterView, ResidentLinkGoogleView,
-    AdminResidentApprovalsListView, AdminResidentApproveView, AdminResidentRejectView
+    AdminResidentApprovalsListView, AdminResidentApproveView, AdminResidentRejectView,
+    CommunityOverviewView
 )
 
 router = DefaultRouter()
@@ -53,10 +54,11 @@ urlpatterns = [
     path('auth/google/register/', GoogleResidentRegisterView.as_view(), name='google-resident-register'),
     path('resident/link-google/', ResidentLinkGoogleView.as_view(), name='resident-link-google'),
 
-    # Admin Resident Approvals
+    # Admin Resident Approvals & Community Structure
     path('admin/resident-approvals/', AdminResidentApprovalsListView.as_view(), name='admin-resident-approvals'),
     path('admin/resident-approvals/<int:pk>/approve/', AdminResidentApproveView.as_view(), name='admin-resident-approve'),
     path('admin/resident-approvals/<int:pk>/reject/', AdminResidentRejectView.as_view(), name='admin-resident-reject'),
+    path('admin/community/overview/', CommunityOverviewView.as_view(), name='admin-community-overview'),
 
     # Smart Shelf Management URLs (Precedes router shelf viewset)
     path('shelves/recommend/', ShelfRecommendationView.as_view(), name='shelf-recommend'),

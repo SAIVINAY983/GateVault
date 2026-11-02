@@ -14,11 +14,14 @@ const ResidentGoogleOnboardingModal = ({
     onComplete
 }) => {
     const [towers, setTowers] = useState([]);
+    const [floors, setFloors] = useState([]);
     const [flats, setFlats] = useState([]);
     const [selectedTower, setSelectedTower] = useState('');
+    const [selectedFloor, setSelectedFloor] = useState('');
     const [selectedFlat, setSelectedFlat] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
     const [loading, setLoading] = useState(false);
+    const [loadingFloors, setLoadingFloors] = useState(false);
     const [loadingFlats, setLoadingFlats] = useState(false);
     const [error, setError] = useState('');
 
@@ -34,11 +37,34 @@ const ResidentGoogleOnboardingModal = ({
             });
     }, [show]);
 
+    // Load available floors dynamically when selectedTower changes
     useEffect(() => {
         if (selectedTower) {
+            setLoadingFloors(true);
+            setSelectedFloor('');
+            setSelectedFlat('');
+            setFlats([]);
+            publicAxios.get(`flats/floors/?tower=${selectedTower}`)
+                .then(res => setFloors(res.data))
+                .catch(err => {
+                    console.error("Failed to load floors:", err);
+                    setFloors([]);
+                })
+                .finally(() => setLoadingFloors(false));
+        } else {
+            setFloors([]);
+            setSelectedFloor('');
+            setSelectedFlat('');
+            setFlats([]);
+        }
+    }, [selectedTower]);
+
+    // Load available flats dynamically when selectedTower and selectedFloor change
+    useEffect(() => {
+        if (selectedTower && selectedFloor !== '') {
             setLoadingFlats(true);
             setSelectedFlat('');
-            publicAxios.get(`flats/?tower=${selectedTower}`)
+            publicAxios.get(`flats/?tower=${selectedTower}&floor=${selectedFloor}`)
                 .then(res => setFlats(res.data))
                 .catch(err => {
                     console.error("Failed to load flats:", err);
@@ -49,7 +75,7 @@ const ResidentGoogleOnboardingModal = ({
             setFlats([]);
             setSelectedFlat('');
         }
-    }, [selectedTower]);
+    }, [selectedTower, selectedFloor]);
 
     if (!show) return null;
 
@@ -60,6 +86,9 @@ const ResidentGoogleOnboardingModal = ({
         if (!selectedTower) {
             return setError("Please select your Tower.");
         }
+        if (selectedFloor === '') {
+            return setError("Please select your Floor.");
+        }
         if (!selectedFlat) {
             return setError("Please select your Flat Number.");
         }
@@ -69,6 +98,7 @@ const ResidentGoogleOnboardingModal = ({
             const response = await publicAxios.post('auth/google/register/', {
                 registration_token: registrationToken,
                 tower_id: parseInt(selectedTower),
+                floor: parseInt(selectedFloor),
                 flat_id: parseInt(selectedFlat),
                 phone_number: phoneNumber
             });
@@ -150,48 +180,79 @@ const ResidentGoogleOnboardingModal = ({
                                     />
                                 </div>
 
-                                {/* Tower Selection */}
-                                <div className="col-md-6">
-                                    <label className="form-label small fw-semibold text-dark">
-                                        Select Tower <span className="text-danger">*</span>
-                                    </label>
-                                    <select
-                                        className="form-select"
-                                        value={selectedTower}
-                                        onChange={(e) => setSelectedTower(e.target.value)}
-                                        required
-                                    >
-                                        <option value="">-- Choose Tower --</option>
-                                        {towers.map(t => (
-                                            <option key={t.id} value={t.id}>{t.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                                {/* Residential Address: Tower -> Floor -> Flat */}
+                                <div className="col-12">
+                                    <div className="p-3 bg-light rounded-3 border">
+                                        <div className="fw-semibold small text-dark mb-2 d-flex align-items-center gap-2">
+                                            <i className="bi bi-buildings text-primary"></i> Residential Community Allocation
+                                        </div>
+                                        <div className="row g-2">
+                                            {/* Field 1: Tower */}
+                                            <div className="col-md-4">
+                                                <label className="form-label small fw-semibold text-dark mb-1">
+                                                    1. Select Tower <span className="text-danger">*</span>
+                                                </label>
+                                                <select
+                                                    className="form-select bg-white"
+                                                    value={selectedTower}
+                                                    onChange={(e) => setSelectedTower(e.target.value)}
+                                                    required
+                                                >
+                                                    <option value="">-- Choose Tower --</option>
+                                                    {towers.map(t => (
+                                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
 
-                                {/* Flat Selection (Filtered by Tower) */}
-                                <div className="col-md-6">
-                                    <label className="form-label small fw-semibold text-dark">
-                                        Select Flat Number <span className="text-danger">*</span>
-                                    </label>
-                                    <select
-                                        className="form-select"
-                                        value={selectedFlat}
-                                        onChange={(e) => setSelectedFlat(e.target.value)}
-                                        disabled={!selectedTower || loadingFlats}
-                                        required
-                                    >
-                                        <option value="">
-                                            {loadingFlats 
-                                                ? 'Loading flats...' 
-                                                : (!selectedTower ? '-- Select Tower first --' : '-- Choose Flat --')}
-                                        </option>
-                                        {flats.map(f => (
-                                            <option key={f.id} value={f.id}>Flat {f.number}</option>
-                                        ))}
-                                    </select>
-                                    <small className="text-muted" style={{ fontSize: '0.75rem' }}>
-                                        GateVault assigns by Tower and Flat Number.
-                                    </small>
+                                            {/* Field 2: Floor */}
+                                            <div className="col-md-4">
+                                                <label className="form-label small fw-semibold text-dark mb-1">
+                                                    2. Select Floor <span className="text-danger">*</span>
+                                                </label>
+                                                <select
+                                                    className="form-select bg-white"
+                                                    value={selectedFloor}
+                                                    onChange={(e) => setSelectedFloor(e.target.value)}
+                                                    disabled={!selectedTower || loadingFloors}
+                                                    required
+                                                >
+                                                    <option value="">
+                                                        {loadingFloors ? 'Loading floors...' : (!selectedTower ? '-- Select Tower first --' : '-- Choose Floor --')}
+                                                    </option>
+                                                    {floors.map(fl => (
+                                                        <option key={fl.floor_number} value={fl.floor_number}>{fl.floor_name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {/* Field 3: Flat Number */}
+                                            <div className="col-md-4">
+                                                <label className="form-label small fw-semibold text-dark mb-1">
+                                                    3. Select Flat <span className="text-danger">*</span>
+                                                </label>
+                                                <select
+                                                    className="form-select bg-white"
+                                                    value={selectedFlat}
+                                                    onChange={(e) => setSelectedFlat(e.target.value)}
+                                                    disabled={selectedFloor === '' || loadingFlats}
+                                                    required
+                                                >
+                                                    <option value="">
+                                                        {loadingFlats 
+                                                            ? 'Loading flats...' 
+                                                            : (selectedFloor === '' ? '-- Select Floor first --' : '-- Choose Flat --')}
+                                                    </option>
+                                                    {flats.map(f => (
+                                                        <option key={f.id} value={f.id}>Flat {f.number}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <small className="text-muted d-block mt-2" style={{ fontSize: '0.75rem' }}>
+                                            GateVault assigns residents by Tower, Floor, and Flat Number (No individual rooms).
+                                        </small>
+                                    </div>
                                 </div>
 
                                 {/* Optional Phone Number */}

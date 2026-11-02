@@ -108,11 +108,17 @@ const AdminDashboard = () => {
                     <h2 className="fw-bold text-dark mb-1">Good morning, Admin</h2>
                     <p className="text-muted">Gatehouse operations overview and real-time analytics.</p>
                 </div>
-                <Link to="/admin/incidents" className="btn btn-outline-danger d-flex align-items-center gap-2">
-                    <i className="bi bi-shield-exclamation"></i>
-                    <span>Incident Portal</span>
-                    {incidentCount > 0 && <span className="badge bg-danger rounded-pill">{incidentCount}</span>}
-                </Link>
+                <div className="d-flex gap-2">
+                    <Link to="/admin/community" className="btn btn-outline-primary d-flex align-items-center gap-2">
+                        <i className="bi bi-buildings"></i>
+                        <span>Community Overview</span>
+                    </Link>
+                    <Link to="/admin/incidents" className="btn btn-outline-danger d-flex align-items-center gap-2">
+                        <i className="bi bi-shield-exclamation"></i>
+                        <span>Incident Portal</span>
+                        {incidentCount > 0 && <span className="badge bg-danger rounded-pill">{incidentCount}</span>}
+                    </Link>
+                </div>
             </div>
             
             <div className="row g-4 mb-4">

@@ -149,7 +149,7 @@ class TowerViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]
 
 class FlatViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Flat.objects.all()
+    queryset = Flat.objects.all().select_related('tower')
     serializer_class = FlatSerializer
     permission_classes = [AllowAny]
     
@@ -158,7 +158,37 @@ class FlatViewSet(viewsets.ReadOnlyModelViewSet):
         tower_id = self.request.query_params.get('tower', None)
         if tower_id:
             queryset = queryset.filter(tower_id=tower_id)
+        floor = self.request.query_params.get('floor', None)
+        if floor is not None and str(floor).strip() != '':
+            try:
+                floor_int = int(floor)
+                matching_ids = [f.id for f in queryset if f.floor_number == floor_int]
+                queryset = queryset.filter(id__in=matching_ids)
+            except ValueError:
+                pass
         return queryset
+
+    @action(detail=False, methods=['get'], url_path='floors')
+    def floors(self, request):
+        """
+        Returns dynamic list of floors available for a selected tower,
+        derived dynamically from existing flat database records.
+        """
+        tower_id = request.query_params.get('tower')
+        qs = Flat.objects.all().select_related('tower')
+        if tower_id:
+            qs = qs.filter(tower_id=tower_id)
+        
+        floors_dict = {}
+        for flat in qs:
+            fn = flat.floor_number
+            if fn is not None and fn not in floors_dict:
+                floors_dict[fn] = {
+                    'floor_number': fn,
+                    'floor_name': flat.floor_name
+                }
+        sorted_floors = sorted(floors_dict.values(), key=lambda x: x['floor_number'])
+        return Response(sorted_floors)
 
 class CarrierViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Carrier.objects.all()
@@ -5340,6 +5370,15 @@ class GoogleResidentRegisterView(views.APIView):
         except Flat.DoesNotExist:
             return Response({"error": "Selected Flat does not exist in the specified Tower."}, status=status.HTTP_400_BAD_REQUEST)
 
+        floor_param = request.data.get('floor')
+        if floor_param is not None and str(floor_param).strip() != '':
+            try:
+                floor_val = int(floor_param)
+                if flat.floor_number != floor_val:
+                    return Response({"error": f"Selected Flat does not belong to the specified Floor ({floor_val})."}, status=status.HTTP_400_BAD_REQUEST)
+            except (ValueError, TypeError):
+                return Response({"error": "Invalid floor value."}, status=status.HTTP_400_BAD_REQUEST)
+
         # Create unique username
         base_username = email.split('@')[0]
         candidate_username = base_username
@@ -5446,7 +5485,10 @@ class ResidentLinkGoogleView(views.APIView):
 class AdminResidentApprovalsListView(generics.ListAPIView):
     """
     List resident profiles for Community Admin approval management.
-    Supports filtering by ?status=PENDING_APPROVAL | APPROVED | REJECTED.
+    Supports filtering by:
+      - ?status=PENDING_APPROVAL | APPROVED | REJECTED | ALL
+      - ?tower=<tower_id>
+      - ?floor=<floor_number>
     """
     permission_classes = [IsAuthenticated, IsAdminUser]
     serializer_class = ResidentApprovalSerializer
@@ -5456,6 +5498,20 @@ class AdminResidentApprovalsListView(generics.ListAPIView):
         status_filter = self.request.query_params.get('status')
         if status_filter and status_filter.upper() in ('PENDING_APPROVAL', 'APPROVED', 'REJECTED'):
             qs = qs.filter(approval_status=status_filter.upper())
+
+        tower_filter = self.request.query_params.get('tower')
+        if tower_filter:
+            qs = qs.filter(flat__tower_id=tower_filter)
+
+        floor_filter = self.request.query_params.get('floor')
+        if floor_filter is not None and str(floor_filter).strip() != '':
+            try:
+                floor_int = int(floor_filter)
+                matching_ids = [p.id for p in qs if p.flat and p.flat.floor_number == floor_int]
+                qs = qs.filter(id__in=matching_ids)
+            except ValueError:
+                pass
+
         return qs
 
 
@@ -5524,6 +5580,136 @@ class AdminResidentRejectView(views.APIView):
         return Response({
             "message": "Resident registration rejected.",
             "profile": ResidentApprovalSerializer(profile).data
+        }, status=status.HTTP_200_OK)
+
+
+class CommunityOverviewView(views.APIView):
+    """
+    Community Overview for Community Admin:
+    - Community Information: name ("GateVault Residency"), total towers (4), total floors (15), total flats (240).
+    - Tower cards: Tower A, B, C, D (15 floors, 60 flats each).
+    - Occupancy statuses: OCCUPIED (>=1 approved resident), PENDING_VERIFICATION (0 approved, >=1 pending), VACANT (0 approved, 0 pending).
+    - Facilities descriptive list (16 facilities).
+    - Dynamic drill-down per tower and per floor showing the 4 flats.
+    """
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request, *args, **kwargs):
+        community_name = "GateVault Residency"
+        towers_qs = Tower.objects.prefetch_related('flats__residents__user').order_by('name')
+
+        facilities = [
+            {"id": "main_gate", "name": "Main security entrance", "category": "Security", "icon": "bi-shield-shaded", "description": "Primary gated access point with 24/7 security monitoring."},
+            {"id": "guard_cabin", "name": "Security guard cabin", "category": "Security", "icon": "bi-person-badge-fill", "description": "Stationed guard post for visitor logging and vehicle verification."},
+            {"id": "visitor_entry", "name": "Visitor and courier entry area", "category": "Logistics", "icon": "bi-box-arrow-in-right", "description": "Designated check-in zone for couriers and visitors."},
+            {"id": "parcel_receiving", "name": "Parcel receiving room", "category": "Parcel Vault", "icon": "bi-box-seam", "description": "Initial intake and barcode scanning checkpoint for packages."},
+            {"id": "parcel_storage", "name": "Secure parcel storage area", "category": "Parcel Vault", "icon": "bi-bookshelf", "description": "CCTV-monitored smart shelving for parcels awaiting pickup."},
+            {"id": "garden", "name": "Central landscaped garden", "category": "Recreation", "icon": "bi-tree-fill", "description": "Lush green community park with native flora and seating."},
+            {"id": "kids_play", "name": "Children's play area", "category": "Recreation", "icon": "bi-emoji-smile-fill", "description": "Safe, rubberized outdoor playground with modern play equipment."},
+            {"id": "clubhouse", "name": "Clubhouse", "category": "Community", "icon": "bi-building-fill", "description": "Resident community center for social events and gatherings."},
+            {"id": "community_hall", "name": "Community hall", "category": "Community", "icon": "bi-people-fill", "description": "Multi-purpose banquet and assembly hall."},
+            {"id": "gym", "name": "Gymnasium", "category": "Fitness", "icon": "bi-heart-pulse-fill", "description": "Equipped fitness center with cardio and strength training gear."},
+            {"id": "indoor_games", "name": "Indoor games area", "category": "Recreation", "icon": "bi-controller", "description": "Table tennis, chess, carrom, and board games lounge."},
+            {"id": "visitor_parking", "name": "Visitor parking", "category": "Infrastructure", "icon": "bi-p-circle-fill", "description": "Designated short-stay parking bays with automated entry passes."},
+            {"id": "resident_parking", "name": "Resident parking", "category": "Infrastructure", "icon": "bi-car-front-fill", "description": "Reserved covered parking bays per flat."},
+            {"id": "walking_path", "name": "Walking pathway", "category": "Fitness", "icon": "bi-signpost-split-fill", "description": "Paved jogging and walking track around the community perimeter."},
+            {"id": "waste_collection", "name": "Waste collection area", "category": "Maintenance", "icon": "bi-trash3-fill", "description": "Segregated waste management and recycling depot."},
+            {"id": "maintenance_office", "name": "Maintenance office", "category": "Operations", "icon": "bi-tools", "description": "Administrative hub for facility management and ticket resolution."}
+        ]
+
+        total_community_flats = 0
+        total_community_occupied = 0
+        total_community_pending = 0
+        total_community_vacant = 0
+
+        towers_data = []
+
+        for tower in towers_qs:
+            flats = tower.flats.all().order_by('number')
+            floors_map = {}
+
+            tower_occupied = 0
+            tower_pending = 0
+            tower_vacant = 0
+
+            for flat in flats:
+                fn = flat.floor_number if flat.floor_number is not None else 0
+                floor_name = flat.floor_name
+
+                # Count residents
+                profiles = flat.residents.all()
+                approved_count = sum(1 for p in profiles if p.approval_status == 'APPROVED')
+                pending_count = sum(1 for p in profiles if p.approval_status == 'PENDING_APPROVAL')
+
+                if approved_count > 0:
+                    status_code = 'OCCUPIED'
+                    tower_occupied += 1
+                elif pending_count > 0:
+                    status_code = 'PENDING_VERIFICATION'
+                    tower_pending += 1
+                else:
+                    status_code = 'VACANT'
+                    tower_vacant += 1
+
+                flat_dict = {
+                    'id': flat.id,
+                    'number': flat.number,
+                    'tower_id': tower.id,
+                    'tower_name': tower.name,
+                    'floor_number': fn,
+                    'floor_name': floor_name,
+                    'occupancy_status': status_code,
+                    'approved_residents_count': approved_count,
+                    'pending_residents_count': pending_count,
+                }
+
+                if fn not in floors_map:
+                    floors_map[fn] = {
+                        'floor_number': fn,
+                        'floor_name': floor_name,
+                        'flats': []
+                    }
+                floors_map[fn]['flats'].append(flat_dict)
+
+            sorted_floors = sorted(floors_map.values(), key=lambda x: x['floor_number'])
+            for fl in sorted_floors:
+                fl['flats'].sort(key=lambda f: f['number'])
+
+            flats_cnt = len(flats)
+            total_community_flats += flats_cnt
+            total_community_occupied += tower_occupied
+            total_community_pending += tower_pending
+            total_community_vacant += tower_vacant
+
+            towers_data.append({
+                'id': tower.id,
+                'name': tower.name,
+                'floors_count': len(sorted_floors),
+                'flats_count': flats_cnt,
+                'occupied_count': tower_occupied,
+                'pending_count': tower_pending,
+                'vacant_count': tower_vacant,
+                'floors': sorted_floors
+            })
+
+        total_towers_count = len(towers_data)
+        floors_per_tower = 15 if total_towers_count > 0 else 0
+
+        return Response({
+            'community_name': community_name,
+            'total_towers': total_towers_count,
+            'floors_per_tower': floors_per_tower,
+            'total_floors': floors_per_tower,
+            'total_flats': total_community_flats,
+            'occupancy_summary': {
+                'total': total_community_flats,
+                'occupied': total_community_occupied,
+                'pending_verification': total_community_pending,
+                'vacant': total_community_vacant,
+                'occupancy_percentage': round((total_community_occupied / total_community_flats * 100), 1) if total_community_flats > 0 else 0
+            },
+            'facilities': facilities,
+            'towers': towers_data
         }, status=status.HTTP_200_OK)
 
 

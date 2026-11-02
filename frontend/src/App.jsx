@@ -8,6 +8,7 @@ import AppLayout from './layouts/AppLayout';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminCommunity from './pages/admin/AdminCommunity';
 import AdminHistory from './pages/admin/AdminHistory';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminIncidents from './pages/admin/AdminIncidents';
@@ -49,6 +50,9 @@ function App() {
             {/* Admin Routes */}
             <Route path="/admin" element={
               <RoleBasedRoute allowedRoles={['ADMIN']}><AdminDashboard /></RoleBasedRoute>
+            } />
+            <Route path="/admin/community" element={
+              <RoleBasedRoute allowedRoles={['ADMIN']}><AdminCommunity /></RoleBasedRoute>
             } />
             <Route path="/admin/alerts" element={
               <RoleBasedRoute allowedRoles={['ADMIN']}><AdminAlerts /></RoleBasedRoute>

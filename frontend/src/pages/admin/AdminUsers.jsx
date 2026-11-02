@@ -12,6 +12,9 @@ const AdminUsers = () => {
     // Active Tab: 'USERS' or 'APPROVALS'
     const [activeTab, setActiveTab] = useState('USERS');
     const [approvalFilter, setApprovalFilter] = useState('PENDING_APPROVAL');
+    const [approvalTowerFilter, setApprovalTowerFilter] = useState('');
+    const [approvalFloorFilter, setApprovalFloorFilter] = useState('');
+    const [detailProfile, setDetailProfile] = useState(null);
 
     // Filters for Users
     const [searchQuery, setSearchQuery] = useState('');
@@ -52,11 +55,14 @@ const AdminUsers = () => {
         }
     };
 
-    const fetchApprovals = async (status = approvalFilter) => {
+    const fetchApprovals = async (status = approvalFilter, tower = approvalTowerFilter, floor = approvalFloorFilter) => {
         try {
             setApprovalsLoading(true);
-            const param = status === 'ALL' ? '' : `?status=${status}`;
-            const res = await axiosInstance.get(`admin/resident-approvals/${param}`);
+            const params = {};
+            if (status && status !== 'ALL') params.status = status;
+            if (tower) params.tower = tower;
+            if (floor !== '') params.floor = floor;
+            const res = await axiosInstance.get('admin/resident-approvals/', { params });
             setApprovals(res.data);
         } catch (err) {
             console.error('Failed to load resident approvals', err);
@@ -76,15 +82,15 @@ const AdminUsers = () => {
 
     useEffect(() => {
         fetchUsers();
-        fetchApprovals('PENDING_APPROVAL');
+        fetchApprovals('PENDING_APPROVAL', '', '');
         fetchTowers();
     }, []);
 
     useEffect(() => {
         if (activeTab === 'APPROVALS') {
-            fetchApprovals(approvalFilter);
+            fetchApprovals(approvalFilter, approvalTowerFilter, approvalFloorFilter);
         }
-    }, [activeTab, approvalFilter]);
+    }, [activeTab, approvalFilter, approvalTowerFilter, approvalFloorFilter]);
 
     useEffect(() => {
         if (residentForm.tower) {
@@ -377,21 +383,71 @@ const AdminUsers = () => {
             {/* TAB 2: RESIDENT APPROVALS */}
             {activeTab === 'APPROVALS' && (
                 <div className="gv-card overflow-hidden">
-                    <div className="card-header bg-white p-4 border-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-                        <div>
-                            <h5 className="fw-bold mb-1">Resident Registration Verification</h5>
-                            <p className="text-muted small mb-0">Verify resident occupancy before granting parcel and gatehouse access.</p>
+                    <div className="card-header bg-white p-4 border-bottom">
+                        <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+                            <div>
+                                <h5 className="fw-bold mb-1">Resident Registration Verification</h5>
+                                <p className="text-muted small mb-0">Verify resident occupancy before granting parcel and gatehouse access.</p>
+                            </div>
+                            <div className="d-flex flex-wrap gap-2">
+                                {['PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'ALL'].map(st => (
+                                    <button
+                                        key={st}
+                                        className={`btn btn-sm rounded-pill px-3 ${approvalFilter === st ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                        onClick={() => setApprovalFilter(st)}
+                                    >
+                                        {st === 'ALL' ? 'All Statuses' : st.replace('_', ' ')}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                        <div className="d-flex gap-2">
-                            {['PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'ALL'].map(st => (
-                                <button
-                                    key={st}
-                                    className={`btn btn-sm rounded-pill px-3 ${approvalFilter === st ? 'btn-primary' : 'btn-outline-secondary'}`}
-                                    onClick={() => setApprovalFilter(st)}
-                                >
-                                    {st.replace('_', ' ')}
-                                </button>
-                            ))}
+
+                        {/* Filters: Tower & Floor */}
+                        <div className="row g-2 pt-2 border-top">
+                            <div className="col-12 col-md-4">
+                                <div className="input-group input-group-sm">
+                                    <span className="input-group-text bg-light text-muted"><i className="bi bi-buildings"></i></span>
+                                    <select
+                                        className="form-select"
+                                        value={approvalTowerFilter}
+                                        onChange={(e) => setApprovalTowerFilter(e.target.value)}
+                                    >
+                                        <option value="">All Towers</option>
+                                        {towers.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="col-12 col-md-4">
+                                <div className="input-group input-group-sm">
+                                    <span className="input-group-text bg-light text-muted"><i className="bi bi-layers"></i></span>
+                                    <select
+                                        className="form-select"
+                                        value={approvalFloorFilter}
+                                        onChange={(e) => setApprovalFloorFilter(e.target.value)}
+                                    >
+                                        <option value="">All Floors</option>
+                                        <option value="0">Ground Floor</option>
+                                        {Array.from({ length: 14 }, (_, i) => i + 1).map(f => (
+                                            <option key={f} value={f}>{f === 1 ? '1st' : f === 2 ? '2nd' : f === 3 ? '3rd' : `${f}th`} Floor</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="col-12 col-md-4 d-flex align-items-center justify-content-md-end">
+                                {(approvalTowerFilter || approvalFloorFilter !== '') && (
+                                    <button
+                                        className="btn btn-sm btn-link text-decoration-none text-muted"
+                                        onClick={() => {
+                                            setApprovalTowerFilter('');
+                                            setApprovalFloorFilter('');
+                                        }}
+                                    >
+                                        <i className="bi bi-x-circle me-1"></i> Clear filters
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -405,11 +461,14 @@ const AdminUsers = () => {
                             <table className="table table-hover align-middle mb-0 border-0">
                                 <thead className="bg-light text-muted small text-uppercase" style={{ letterSpacing: '0.05em' }}>
                                     <tr>
-                                        <th className="ps-4 py-3 fw-semibold border-bottom-0">Resident / Email</th>
-                                        <th className="py-3 fw-semibold border-bottom-0">Assigned Tower & Flat</th>
-                                        <th className="py-3 fw-semibold border-bottom-0">Google OAuth</th>
-                                        <th className="py-3 fw-semibold border-bottom-0">Status</th>
-                                        <th className="py-3 fw-semibold border-bottom-0">Details / Reason</th>
+                                        <th className="ps-4 py-3 fw-semibold border-bottom-0">Resident Name</th>
+                                        <th className="py-3 fw-semibold border-bottom-0">Email</th>
+                                        <th className="py-3 fw-semibold border-bottom-0">Registration Method</th>
+                                        <th className="py-3 fw-semibold border-bottom-0">Tower</th>
+                                        <th className="py-3 fw-semibold border-bottom-0">Floor</th>
+                                        <th className="py-3 fw-semibold border-bottom-0">Flat Number</th>
+                                        <th className="py-3 fw-semibold border-bottom-0">Registration Date</th>
+                                        <th className="py-3 fw-semibold border-bottom-0">Approval Status</th>
                                         <th className="pe-4 py-3 fw-semibold border-bottom-0 text-end">Actions</th>
                                     </tr>
                                 </thead>
@@ -418,23 +477,40 @@ const AdminUsers = () => {
                                         <tr key={p.id}>
                                             <td className="ps-4 py-3">
                                                 <div className="fw-bold text-dark">{p.full_name}</div>
-                                                <div className="text-muted small">{p.email || p.username}</div>
+                                                <small className="text-muted">{p.username}</small>
+                                            </td>
+                                            <td className="py-3">
+                                                <span className="small text-dark">{p.email || '—'}</span>
                                                 {p.phone_number && (
-                                                    <div className="text-muted small"><i className="bi bi-telephone me-1"></i>{p.phone_number}</div>
+                                                    <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                                                        <i className="bi bi-telephone me-1"></i>{p.phone_number}
+                                                    </div>
                                                 )}
                                             </td>
                                             <td className="py-3">
-                                                <span className="fw-semibold text-dark">Tower {p.tower_name}</span>
-                                                <div className="text-muted small">Flat {p.flat_number}</div>
-                                            </td>
-                                            <td className="py-3">
-                                                {p.google_linked ? (
+                                                {p.registration_method === 'Google' || p.google_linked ? (
                                                     <span className="badge bg-light text-dark border px-2 py-1">
-                                                        <i className="bi bi-google text-danger me-1"></i> Google Verified
+                                                        <i className="bi bi-google text-danger me-1"></i> Google
                                                     </span>
                                                 ) : (
-                                                    <span className="text-muted small">Password Account</span>
+                                                    <span className="badge bg-light text-secondary border px-2 py-1">
+                                                        <i className="bi bi-key-fill text-muted me-1"></i> Password
+                                                    </span>
                                                 )}
+                                            </td>
+                                            <td className="py-3">
+                                                <span className="fw-semibold text-dark">{p.tower_name || '—'}</span>
+                                            </td>
+                                            <td className="py-3">
+                                                <span className="small text-muted">{p.floor_name || (p.floor_number !== null ? `Floor ${p.floor_number}` : '—')}</span>
+                                            </td>
+                                            <td className="py-3">
+                                                <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1 fw-bold">
+                                                    {p.flat_number}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 small text-muted">
+                                                {p.date_joined ? new Date(p.date_joined).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                                             </td>
                                             <td className="py-3">
                                                 <span className={`badge ${
@@ -443,51 +519,61 @@ const AdminUsers = () => {
                                                 } px-2 py-1`}>
                                                     {p.approval_status.replace('_', ' ')}
                                                 </span>
-                                            </td>
-                                            <td className="py-3 small">
-                                                {p.approval_status === 'APPROVED' && p.approved_by_name && (
-                                                    <span className="text-muted">Approved by {p.approved_by_name}</span>
-                                                )}
-                                                {p.approval_status === 'REJECTED' && (
-                                                    <span className="text-danger">{p.rejection_reason || 'No reason specified.'}</span>
-                                                )}
-                                                {p.approval_status === 'PENDING_APPROVAL' && (
-                                                    <span className="text-muted">Awaiting admin review</span>
+                                                {p.rejection_reason && (
+                                                    <div className="text-danger mt-1" style={{ fontSize: '0.72rem' }}>
+                                                        {p.rejection_reason}
+                                                    </div>
                                                 )}
                                             </td>
                                             <td className="pe-4 py-3 text-end">
-                                                {p.approval_status === 'PENDING_APPROVAL' && (
-                                                    <div className="d-flex justify-content-end gap-2">
+                                                <div className="d-flex justify-content-end align-items-center gap-1">
+                                                    <button
+                                                        className="btn btn-sm btn-outline-secondary rounded-pill px-2 py-1"
+                                                        title="View registration details"
+                                                        onClick={() => setDetailProfile(p)}
+                                                    >
+                                                        <i className="bi bi-eye"></i>
+                                                    </button>
+                                                    {p.approval_status === 'PENDING_APPROVAL' && (
+                                                        <>
+                                                            <button
+                                                                className="btn btn-sm btn-success rounded-pill px-3 fw-semibold"
+                                                                onClick={() => handleApproveResident(p.id)}
+                                                            >
+                                                                <i className="bi bi-check-lg me-1"></i> Approve
+                                                            </button>
+                                                            <button
+                                                                className="btn btn-sm btn-outline-danger rounded-pill px-3 fw-semibold"
+                                                                onClick={() => {
+                                                                    setRejectProfile(p);
+                                                                    setRejectReason('');
+                                                                }}
+                                                            >
+                                                                <i className="bi bi-x-lg me-1"></i> Reject
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    {p.approval_status === 'REJECTED' && (
                                                         <button
-                                                            className="btn btn-sm btn-success rounded-pill px-3 fw-semibold"
+                                                            className="btn btn-sm btn-outline-success rounded-pill px-3"
                                                             onClick={() => handleApproveResident(p.id)}
                                                         >
-                                                            <i className="bi bi-check-lg me-1"></i> Approve
+                                                            Re-approve
                                                         </button>
+                                                    )}
+                                                    {p.approval_status === 'APPROVED' && (
                                                         <button
-                                                            className="btn btn-sm btn-outline-danger rounded-pill px-3 fw-semibold"
+                                                            className="btn btn-sm btn-outline-danger rounded-pill px-2 py-1"
+                                                            title="Reject/Revoke approval"
                                                             onClick={() => {
                                                                 setRejectProfile(p);
                                                                 setRejectReason('');
                                                             }}
                                                         >
-                                                            <i className="bi bi-x-lg me-1"></i> Reject
+                                                            <i className="bi bi-slash-circle me-1"></i> Revoke
                                                         </button>
-                                                    </div>
-                                                )}
-                                                {p.approval_status === 'REJECTED' && (
-                                                    <button
-                                                        className="btn btn-sm btn-outline-success rounded-pill px-3"
-                                                        onClick={() => handleApproveResident(p.id)}
-                                                    >
-                                                        Re-approve
-                                                    </button>
-                                                )}
-                                                {p.approval_status === 'APPROVED' && (
-                                                    <span className="text-success small fw-medium">
-                                                        <i className="bi bi-check-circle-fill me-1"></i> Active Resident
-                                                    </span>
-                                                )}
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -501,10 +587,121 @@ const AdminUsers = () => {
                             <EmptyState 
                                 icon="bi-shield-check" 
                                 title="No registrations found" 
-                                message={`There are currently no resident registrations matching '${approvalFilter}'.`} 
+                                message={`There are currently no resident registrations matching the selected filters.`} 
                             />
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* RESIDENT DETAILS MODAL */}
+            {detailProfile && (
+                <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1060 }} tabIndex="-1">
+                    <div className="modal-dialog modal-dialog-centered">
+                        <div className="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+                            <div className="modal-header bg-light border-bottom p-4">
+                                <div className="d-flex align-items-center gap-3">
+                                    <div className="bg-primary text-white rounded-circle p-2 d-flex align-items-center justify-content-center" style={{ width: 42, height: 42 }}>
+                                        <i className="bi bi-person-lines-fill fs-5"></i>
+                                    </div>
+                                    <div>
+                                        <h5 className="modal-title fw-bold text-dark mb-0">{detailProfile.full_name}</h5>
+                                        <small className="text-muted">Resident Registration Audit Record</small>
+                                    </div>
+                                </div>
+                                <button type="button" className="btn-close" onClick={() => setDetailProfile(null)}></button>
+                            </div>
+                            <div className="modal-body p-4">
+                                <div className="row g-3">
+                                    <div className="col-6">
+                                        <div className="small text-muted fw-semibold">Email Address</div>
+                                        <div className="text-dark fw-medium">{detailProfile.email || '—'}</div>
+                                    </div>
+                                    <div className="col-6">
+                                        <div className="small text-muted fw-semibold">Phone Number</div>
+                                        <div className="text-dark fw-medium">{detailProfile.phone_number || 'Not provided'}</div>
+                                    </div>
+                                    <div className="col-6">
+                                        <div className="small text-muted fw-semibold">Tower</div>
+                                        <div className="text-dark fw-bold">{detailProfile.tower_name || '—'}</div>
+                                    </div>
+                                    <div className="col-6">
+                                        <div className="small text-muted fw-semibold">Floor & Flat</div>
+                                        <div className="text-dark fw-bold">{detailProfile.floor_name || `Floor ${detailProfile.floor_number}`}, Flat {detailProfile.flat_number}</div>
+                                    </div>
+                                    <div className="col-6">
+                                        <div className="small text-muted fw-semibold">Registration Method</div>
+                                        <div className="text-dark">
+                                            {detailProfile.google_linked ? (
+                                                <span className="badge bg-light text-dark border">
+                                                    <i className="bi bi-google text-danger me-1"></i> Google Verified
+                                                </span>
+                                            ) : (
+                                                <span className="badge bg-light text-secondary border">
+                                                    <i className="bi bi-key-fill text-muted me-1"></i> Email & Password
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="col-6">
+                                        <div className="small text-muted fw-semibold">Registration Date</div>
+                                        <div className="text-dark">
+                                            {detailProfile.date_joined ? new Date(detailProfile.date_joined).toLocaleString() : '—'}
+                                        </div>
+                                    </div>
+                                    <div className="col-12">
+                                        <div className="small text-muted fw-semibold">Current Approval Status</div>
+                                        <span className={`badge ${
+                                            detailProfile.approval_status === 'APPROVED' ? 'bg-success bg-opacity-10 text-success border border-success' :
+                                            (detailProfile.approval_status === 'PENDING_APPROVAL' ? 'bg-warning bg-opacity-10 text-warning-emphasis border border-warning' : 'bg-danger bg-opacity-10 text-danger border border-danger')
+                                        } px-2 py-1 mt-1`}>
+                                            {detailProfile.approval_status.replace('_', ' ')}
+                                        </span>
+                                    </div>
+                                    {detailProfile.approved_by_name && (
+                                        <div className="col-12 bg-light p-2 rounded-2">
+                                            <div className="small text-muted">Approved by {detailProfile.approved_by_name} on {detailProfile.approved_at ? new Date(detailProfile.approved_at).toLocaleString() : '—'}</div>
+                                        </div>
+                                    )}
+                                    {detailProfile.rejection_reason && (
+                                        <div className="col-12 bg-danger bg-opacity-10 p-2 rounded-2 text-danger small">
+                                            <strong>Rejection Reason:</strong> {detailProfile.rejection_reason}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="modal-footer bg-light border-top p-3 d-flex justify-content-end gap-2">
+                                {detailProfile.approval_status === 'PENDING_APPROVAL' && (
+                                    <>
+                                        <button
+                                            className="btn btn-sm btn-success fw-semibold px-3"
+                                            onClick={() => {
+                                                const id = detailProfile.id;
+                                                setDetailProfile(null);
+                                                handleApproveResident(id);
+                                            }}
+                                        >
+                                            <i className="bi bi-check-lg me-1"></i> Approve
+                                        </button>
+                                        <button
+                                            className="btn btn-sm btn-danger fw-semibold px-3"
+                                            onClick={() => {
+                                                const p = detailProfile;
+                                                setDetailProfile(null);
+                                                setRejectProfile(p);
+                                                setRejectReason('');
+                                            }}
+                                        >
+                                            <i className="bi bi-x-lg me-1"></i> Reject
+                                        </button>
+                                    </>
+                                )}
+                                <button className="btn btn-sm btn-outline-secondary px-3" onClick={() => setDetailProfile(null)}>
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 

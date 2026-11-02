@@ -21,10 +21,12 @@ class TowerSerializer(serializers.ModelSerializer):
 
 class FlatSerializer(serializers.ModelSerializer):
     tower_name = serializers.CharField(source='tower.name', read_only=True)
+    floor_number = serializers.IntegerField(read_only=True)
+    floor_name = serializers.CharField(read_only=True)
     
     class Meta:
         model = Flat
-        fields = ['id', 'number', 'tower', 'tower_name']
+        fields = ['id', 'number', 'tower', 'tower_name', 'floor_number', 'floor_name']
 
 class CarrierSerializer(serializers.ModelSerializer):
     class Meta:
@@ -272,18 +274,23 @@ class ResidentApprovalSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(source='user.first_name', read_only=True)
     last_name = serializers.CharField(source='user.last_name', read_only=True)
     full_name = serializers.SerializerMethodField()
+    tower_id = serializers.IntegerField(source='flat.tower.id', read_only=True)
     tower_name = serializers.CharField(source='flat.tower.name', read_only=True)
+    floor_number = serializers.SerializerMethodField()
+    floor_name = serializers.SerializerMethodField()
     flat_number = serializers.CharField(source='flat.number', read_only=True)
     date_joined = serializers.DateTimeField(source='user.date_joined', read_only=True)
     google_linked = serializers.SerializerMethodField()
+    registration_method = serializers.SerializerMethodField()
     approved_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ResidentProfile
         fields = [
             'id', 'user_id', 'username', 'email', 'first_name', 'last_name', 'full_name',
-            'phone_number', 'flat_id', 'tower_name', 'flat_number', 'approval_status',
-            'google_linked', 'rejection_reason', 'date_joined', 'approved_by_name', 'approved_at'
+            'phone_number', 'flat_id', 'tower_id', 'tower_name', 'floor_number', 'floor_name',
+            'flat_number', 'approval_status', 'google_linked', 'registration_method',
+            'rejection_reason', 'date_joined', 'approved_by_name', 'approved_at'
         ]
 
     def get_full_name(self, obj):
@@ -292,6 +299,15 @@ class ResidentApprovalSerializer(serializers.ModelSerializer):
     def get_google_linked(self, obj):
         return bool(obj.google_id)
 
+    def get_registration_method(self, obj):
+        return 'Google' if obj.google_id else 'Password'
+
+    def get_floor_number(self, obj):
+        return obj.flat.floor_number if obj.flat else None
+
+    def get_floor_name(self, obj):
+        return obj.flat.floor_name if obj.flat else None
+
     def get_approved_by_name(self, obj):
         if obj.approved_by:
             return obj.approved_by.get_full_name() or obj.approved_by.username
@@ -299,21 +315,47 @@ class ResidentApprovalSerializer(serializers.ModelSerializer):
 
 
 class CreateResidentSerializer(serializers.ModelSerializer):
+    tower_id = serializers.IntegerField(write_only=True, required=False)
+    floor = serializers.IntegerField(write_only=True, required=False)
     flat_id = serializers.IntegerField(write_only=True)
+    phone_number = serializers.CharField(write_only=True, required=False, allow_blank=True)
     password = serializers.CharField(write_only=True)
     first_name = serializers.CharField(required=True)
     last_name = serializers.CharField(required=True)
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'first_name', 'last_name', 'flat_id']
+        fields = ['username', 'email', 'password', 'first_name', 'last_name', 'flat_id', 'tower_id', 'floor', 'phone_number']
+
+    def validate(self, attrs):
+        flat_id = attrs.get('flat_id')
+        tower_id = attrs.get('tower_id')
+        floor = attrs.get('floor')
+
+        try:
+            flat = Flat.objects.select_related('tower').get(id=flat_id)
+        except Flat.DoesNotExist:
+            raise serializers.ValidationError({"flat_id": "Invalid flat ID or selected flat does not exist."})
+
+        if tower_id is not None:
+            if not Tower.objects.filter(id=tower_id).exists():
+                raise serializers.ValidationError({"tower_id": "Selected tower does not exist."})
+            if flat.tower_id != tower_id:
+                raise serializers.ValidationError({"flat_id": "Selected flat does not belong to the selected tower."})
+
+        if floor is not None:
+            if flat.floor_number != floor:
+                raise serializers.ValidationError({"flat_id": f"Selected flat does not belong to the selected floor ({floor})."})
+
+        attrs['resolved_flat'] = flat
+        return attrs
 
     def create(self, validated_data):
-        flat_id = validated_data.pop('flat_id')
-        try:
-            flat = Flat.objects.get(id=flat_id)
-        except Flat.DoesNotExist:
-            raise serializers.ValidationError({"flat_id": "Invalid flat ID."})
+        flat = validated_data.pop('resolved_flat')
+        validated_data.pop('flat_id', None)
+        tower_id = validated_data.pop('tower_id', None)
+        floor = validated_data.pop('floor', None)
+        phone_number = validated_data.pop('phone_number', '') or ''
             
         user = User.objects.create_user(
             username=validated_data['username'],
@@ -335,6 +377,7 @@ class CreateResidentSerializer(serializers.ModelSerializer):
         profile = ResidentProfile.objects.create(
             user=user,
             flat=flat,
+            phone_number=phone_number,
             approval_status=approval_status,
             approved_by=approved_by,
             approved_at=approved_at

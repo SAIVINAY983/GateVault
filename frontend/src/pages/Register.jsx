@@ -20,14 +20,19 @@ const Register = () => {
         last_name: '',
         username: '',
         email: '',
+        phone_number: '',
         password: '',
         confirm_password: '',
         tower: '',
+        floor: '',
         flat_id: ''
     });
     
     const [towers, setTowers] = useState([]);
+    const [floors, setFloors] = useState([]);
     const [flats, setFlats] = useState([]);
+    const [loadingFloors, setLoadingFloors] = useState(false);
+    const [loadingFlats, setLoadingFlats] = useState(false);
     
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
@@ -46,15 +51,37 @@ const Register = () => {
             .catch(err => console.error("Could not load towers:", err));
     }, []);
 
+    // Load available floors dynamically when Tower changes
     useEffect(() => {
         if (formData.tower) {
-            publicAxios.get(`flats/?tower=${formData.tower}`)
+            setLoadingFloors(true);
+            publicAxios.get(`flats/floors/?tower=${formData.tower}`)
+                .then(res => setFloors(res.data))
+                .catch(err => {
+                    console.error("Could not load floors:", err);
+                    setFloors([]);
+                })
+                .finally(() => setLoadingFloors(false));
+        } else {
+            setFloors([]);
+        }
+    }, [formData.tower]);
+
+    // Load available flats dynamically when Tower and Floor are selected
+    useEffect(() => {
+        if (formData.tower && formData.floor !== '') {
+            setLoadingFlats(true);
+            publicAxios.get(`flats/?tower=${formData.tower}&floor=${formData.floor}`)
                 .then(res => setFlats(res.data))
-                .catch(err => console.error(err));
+                .catch(err => {
+                    console.error("Could not load flats:", err);
+                    setFlats([]);
+                })
+                .finally(() => setLoadingFlats(false));
         } else {
             setFlats([]);
         }
-    }, [formData.tower]);
+    }, [formData.tower, formData.floor]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -62,6 +89,15 @@ const Register = () => {
         setSuccess('');
         setGoogleNotice(null);
 
+        if (!formData.tower) {
+            return setError('Please select your Tower.');
+        }
+        if (formData.floor === '') {
+            return setError('Please select your Floor.');
+        }
+        if (!formData.flat_id) {
+            return setError('Please select your Flat Number.');
+        }
         if (formData.password !== formData.confirm_password) {
             return setError('Passwords do not match.');
         }
@@ -73,19 +109,22 @@ const Register = () => {
                 last_name: formData.last_name,
                 username: formData.username,
                 email: formData.email,
+                phone_number: formData.phone_number,
                 password: formData.password,
-                flat_id: formData.flat_id,
+                tower_id: parseInt(formData.tower),
+                floor: parseInt(formData.floor),
+                flat_id: parseInt(formData.flat_id),
                 role: 'RESIDENT'
             });
             
             setSuccess('Registration submitted successfully! Your account is pending Community Admin approval. You will be redirected to the sign-in page.');
-            setFormData({ first_name: '', last_name: '', username: '', email: '', password: '', confirm_password: '', tower: '', flat_id: '' });
+            setFormData({ first_name: '', last_name: '', username: '', email: '', phone_number: '', password: '', confirm_password: '', tower: '', floor: '', flat_id: '' });
             setTimeout(() => {
                 navigate('/login');
             }, 2500);
             
         } catch (err) {
-            setError(err.response?.data?.username?.[0] || err.response?.data?.error || 'Failed to create account. Please check your details.');
+            setError(err.response?.data?.username?.[0] || err.response?.data?.flat_id?.[0] || err.response?.data?.error || 'Failed to create account. Please check your details.');
         } finally {
             setLoading(false);
         }
@@ -284,21 +323,89 @@ const Register = () => {
                             </div>
                         </div>
 
-                        <div className="row g-3 mb-4">
-                            <div className="col-12 col-md-6">
-                                <label className="form-label small fw-semibold text-dark">Tower</label>
-                                <select className="form-select bg-light py-2" required value={formData.tower} onChange={e => setFormData({...formData, tower: e.target.value, flat_id: ''})}>
-                                    <option value="">Select Tower...</option>
-                                    {towers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                </select>
+                        <div className="mb-3">
+                            <label className="form-label small fw-semibold text-dark">Phone Number (Optional)</label>
+                            <div className="input-group">
+                                <span className="input-group-text bg-light border-end-0"><i className="bi bi-telephone text-muted"></i></span>
+                                <input 
+                                    type="tel" 
+                                    className="form-control bg-light border-start-0 ps-0 py-2" 
+                                    placeholder="e.g. +91 98765 43210" 
+                                    value={formData.phone_number} 
+                                    onChange={e => setFormData({...formData, phone_number: e.target.value})} 
+                                />
                             </div>
-                            <div className="col-12 col-md-6">
-                                <label className="form-label small fw-semibold text-dark">Flat</label>
-                                <select className="form-select bg-light py-2" required disabled={!formData.tower} value={formData.flat_id} onChange={e => setFormData({...formData, flat_id: e.target.value})}>
-                                    <option value="">Select Flat...</option>
-                                    {flats.map(f => <option key={f.id} value={f.id}>{f.number}</option>)}
-                                </select>
+                        </div>
+
+                        {/* Residential Address: Tower -> Floor -> Flat Number */}
+                        <div className="p-3 bg-light rounded-3 mb-4 border">
+                            <div className="fw-semibold small text-dark mb-2 d-flex align-items-center gap-2">
+                                <i className="bi bi-buildings text-primary"></i> Residential Address
                             </div>
+                            <div className="row g-2">
+                                <div className="col-12 col-md-4">
+                                    <label className="form-label small fw-semibold text-dark mb-1">
+                                        1. Tower <span className="text-danger">*</span>
+                                    </label>
+                                    <select 
+                                        className="form-select bg-white py-2" 
+                                        required 
+                                        value={formData.tower} 
+                                        onChange={e => setFormData({
+                                            ...formData, 
+                                            tower: e.target.value, 
+                                            floor: '', 
+                                            flat_id: ''
+                                        })}
+                                    >
+                                        <option value="">Select Tower...</option>
+                                        {towers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="col-12 col-md-4">
+                                    <label className="form-label small fw-semibold text-dark mb-1">
+                                        2. Floor <span className="text-danger">*</span>
+                                    </label>
+                                    <select 
+                                        className="form-select bg-white py-2" 
+                                        required 
+                                        disabled={!formData.tower || loadingFloors} 
+                                        value={formData.floor} 
+                                        onChange={e => setFormData({
+                                            ...formData, 
+                                            floor: e.target.value, 
+                                            flat_id: ''
+                                        })}
+                                    >
+                                        <option value="">
+                                            {loadingFloors ? 'Loading floors...' : (!formData.tower ? 'Select Tower first' : 'Select Floor...')}
+                                        </option>
+                                        {floors.map(fl => (
+                                            <option key={fl.floor_number} value={fl.floor_number}>{fl.floor_name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="col-12 col-md-4">
+                                    <label className="form-label small fw-semibold text-dark mb-1">
+                                        3. Flat <span className="text-danger">*</span>
+                                    </label>
+                                    <select 
+                                        className="form-select bg-white py-2" 
+                                        required 
+                                        disabled={formData.floor === '' || loadingFlats} 
+                                        value={formData.flat_id} 
+                                        onChange={e => setFormData({...formData, flat_id: e.target.value})}
+                                    >
+                                        <option value="">
+                                            {loadingFlats ? 'Loading flats...' : (formData.floor === '' ? 'Select Floor first' : 'Select Flat...')}
+                                        </option>
+                                        {flats.map(f => <option key={f.id} value={f.id}>Flat {f.number}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <small className="text-muted d-block mt-2" style={{ fontSize: '0.75rem' }}>
+                                GateVault assigns residents by Tower, Floor, and Flat Number.
+                            </small>
                         </div>
 
                         <div className="mb-4">
