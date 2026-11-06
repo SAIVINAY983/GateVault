@@ -84,6 +84,7 @@ flowchart TD
     ENG_INTAKE <--> DB_PARCEL
     ENG_SHELF <--> DB_SHELF
     ENG_HANDOVER <--> DB_PASS
+```
 
 <p align="center">
   <strong>Digital Chain of Custody & Smart Logistics Platform for Modern Gated Residential Communities</strong>
