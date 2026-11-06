@@ -1,5 +1,46 @@
 # GateVault
 
+<p align="center">
+  <strong>Digital Chain of Custody & Smart Logistics Platform for Modern Gated Residential Communities</strong>
+</p>
+
+<p align="center">
+  <a href="https://gate-vault-self.vercel.app"><img src="https://img.shields.io/badge/Frontend-Vercel%20Live-brightgreen?style=for-the-badge&logo=vercel" alt="Frontend Live"></a>
+  <a href="https://gatevault.onrender.com"><img src="https://img.shields.io/badge/Backend-Render%20Live-blue?style=for-the-badge&logo=render" alt="Backend Live"></a>
+  <img src="https://img.shields.io/badge/Community-GateVault%20Residency%20(240%20Flats)-orange?style=for-the-badge" alt="GateVault Residency">
+  <img src="https://img.shields.io/badge/Tests-394%20Passing%20(100%25)-success?style=for-the-badge" alt="Tests">
+</p>
+
+<p align="center">
+  <img src="docs/gatevault_website.jpg" alt="GateVault Platform Landing Preview" width="100%"/>
+</p>
+
+---
+
+## 🌟 Live Deployments
+
+- **Frontend Application (Vercel):** [https://gate-vault-self.vercel.app](https://gate-vault-self.vercel.app)
+- **Backend REST API (Render):** [https://gatevault.onrender.com](https://gatevault.onrender.com)
+- **GitHub Repository:** [https://github.com/SAIVINAY983/GateVault.git](https://github.com/SAIVINAY983/GateVault.git)
+
+---
+
+## 📖 Project Overview
+
+In high-density gated residential communities, manual delivery tracking leads to package theft, gatehouse congestion, disputes over damaged goods, and uncollected parcels.
+
+**GateVault** eliminates these problems by enforcing a **zero-trust, digital chain of custody** from courier arrival to resident handover. Every package is scanned, inspected with photographic proof, assigned to a space-optimized smart storage shelf, and released exclusively via **cryptographic QR pickup passes** or **dynamic 6-digit PIN verification**.
+
+The application is pre-configured with **GateVault Residency**—a realistic gated community topology of **4 Towers, 15 Floors per tower, and 240 individual flats**, backed by dual registration approval (Password + Google OAuth 2.0), smart shelves, courier logs, emergency broadcasts, and automated disaster recovery.
+
+---
+
+## 🏛️ System Architecture Blueprint
+
+GateVault is engineered with a multi-tiered zero-trust architecture spanning client portals, API gateways, logistics engines, and isolated datastores:
+
+> **Note:** GitHub renders this diagram natively in crisp vector SVG at all display scales. Full-resolution raster file also available at [`docs/gatevault_architecture.png`](docs/gatevault_architecture.png).
+
 ```mermaid
 flowchart TD
     classDef actor fill:#0f172a,stroke:#3b82f6,stroke-width:2px,color:#ffffff;
@@ -85,35 +126,6 @@ flowchart TD
     ENG_SHELF <--> DB_SHELF
     ENG_HANDOVER <--> DB_PASS
 ```
-
-<p align="center">
-  <strong>Digital Chain of Custody & Smart Logistics Platform for Modern Gated Residential Communities</strong>
-</p>
-
-<p align="center">
-  <a href="https://gate-vault-self.vercel.app"><img src="https://img.shields.io/badge/Frontend-Vercel%20Live-brightgreen?style=for-the-badge&logo=vercel" alt="Frontend Live"></a>
-  <a href="https://gatevault.onrender.com"><img src="https://img.shields.io/badge/Backend-Render%20Live-blue?style=for-the-badge&logo=render" alt="Backend Live"></a>
-  <img src="https://img.shields.io/badge/Community-GateVault%20Residency%20(240%20Flats)-orange?style=for-the-badge" alt="GateVault Residency">
-  <img src="https://img.shields.io/badge/Tests-394%20Passing%20(100%25)-success?style=for-the-badge" alt="Tests">
-</p>
-
----
-
-## 🌟 Live Deployments
-
-- **Frontend Application (Vercel):** [https://gate-vault-self.vercel.app](https://gate-vault-self.vercel.app)
-- **Backend REST API (Render):** [https://gatevault.onrender.com](https://gatevault.onrender.com)
-- **GitHub Repository:** [https://github.com/SAIVINAY983/GateVault.git](https://github.com/SAIVINAY983/GateVault.git)
-
----
-
-## 📖 Project Overview
-
-In high-density gated residential communities, manual delivery tracking leads to package theft, gatehouse congestion, disputes over damaged goods, and uncollected parcels.
-
-**GateVault** eliminates these problems by enforcing a **zero-trust, digital chain of custody** from courier arrival to resident handover. Every package is scanned, inspected with photographic proof, assigned to a space-optimized smart storage shelf, and released exclusively via **cryptographic QR pickup passes** or **dynamic 6-digit PIN verification**.
-
-The application is pre-configured with **GateVault Residency**—a realistic gated community topology of **4 Towers, 15 Floors per tower, and 240 individual flats**, backed by dual registration approval (Password + Google OAuth 2.0), smart shelves, courier logs, emergency broadcasts, and automated disaster recovery.
 
 ---
 
@@ -289,7 +301,8 @@ GateVault/
 │   ├── package.json                        # Node dependencies
 │   └── vite.config.js                      # Vite build configuration
 ├── docs/
-│   └── gatevault_architecture.png          # Master System Architecture Blueprint
+│   ├── gatevault_architecture.png          # Master System Architecture Blueprint
+│   └── gatevault_website.jpg               # Live Website Landing Preview
 ├── GATEVAULT_PROJECT_REPORT.md             # Comprehensive End-to-End Project Report
 └── README.md                               # Project documentation
 ```
