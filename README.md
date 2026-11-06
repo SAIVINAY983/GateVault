@@ -1,8 +1,89 @@
 # GateVault
 
-<p align="center">
-  <img src="docs/gatevault_architecture.png" alt="GateVault Complete System Architecture & Enterprise Data Flow Pipeline" width="950"/>
-</p>
+```mermaid
+flowchart TD
+    classDef actor fill:#0f172a,stroke:#3b82f6,stroke-width:2px,color:#ffffff;
+    classDef frontend fill:#f8fafc,stroke:#0284c7,stroke-width:2px,color:#0369a1;
+    classDef gateway fill:#eff6ff,stroke:#2563eb,stroke-width:2px,color:#1e40af;
+    classDef module fill:#f0fdf4,stroke:#16a34a,stroke-width:2px,color:#14532d;
+    classDef datastore fill:#fffbeb,stroke:#d97706,stroke-width:2px,color:#78350f;
+
+    subgraph Layer1 ["1. Community Actors & External Services"]
+        ACT_RES["Resident (Flat Occupant)"]:::actor
+        ACT_GUARD["Security Guard (Gatehouse Station)"]:::actor
+        ACT_ADMIN["Community Admin (Society Management)"]:::actor
+        ACT_COURIER["Courier Personnel (Delivery Agents)"]:::actor
+        EXT_GOOGLE["Google OAuth 2.0 (Identity Provider)"]:::actor
+    end
+
+    subgraph Layer2 ["2. Presentation Layer: React 19 + Vite"]
+        UI_AUTH["Auth & Registration Portal"]:::frontend
+        UI_RES["Resident Dashboard"]:::frontend
+        UI_GUARD["Guard Station Portal"]:::frontend
+        UI_ADMIN["Admin Management Suite"]:::frontend
+    end
+
+    subgraph Layer3 ["3. API Gateway & Security Layer: Django DRF"]
+        SEC_OAUTH["Google OAuth Token Verifier"]:::gateway
+        SEC_JWT["SimpleJWT Authenticator"]:::gateway
+        SEC_RBAC["Role-Based Access Control (RBAC)"]:::gateway
+        SEC_ISOLATION["Cross-Flat Data Isolation Engine"]:::gateway
+    end
+
+    subgraph Layer4 ["4. Core Business Engines & Logistics Pipelines"]
+        ENG_REG(("E1: Resident Onboarding & Dual Approval")):::module
+        ENG_ALERTS(("E2: Priority Alerts & Reporting")):::module
+        ENG_COMM(("E3: Gated Community Architecture")):::module
+        ENG_COURIER(("E4: Courier Gate Logging & Tracking")):::module
+        ENG_SHELF(("E5: Smart Storage Shelf Optimizer")):::module
+        ENG_HANDOVER(("E6: Dual Handover Verification")):::module
+        ENG_INTAKE(("E7: Parcel Intake & Inspection Engine")):::module
+    end
+
+    subgraph Layer5 ["5. Persistence Layer: Data Stores"]
+        DB_USERS[("D1: Users & Profiles Store")]:::datastore
+        DB_COMM[("D2: Community Structure Store (240 Flats)")]:::datastore
+        DB_COURIER[("D3: Courier Logs Store")]:::datastore
+        DB_PASS[("D4: Verification Tokens Store")]:::datastore
+        DB_SHELF[("D5: Storage Shelves Store")]:::datastore
+        DB_PARCEL[("D6: Parcel Vault Store")]:::datastore
+    end
+
+    ACT_RES -->|"Signup / Login"| UI_AUTH
+    ACT_RES -->|"Manage Pickups & Passes"| UI_RES
+    ACT_GUARD -->|"Log Entry / Intake"| UI_GUARD
+    ACT_ADMIN -->|"Audit & Approvals"| UI_ADMIN
+    ACT_COURIER -->|"Provide ID & Package"| ACT_GUARD
+    EXT_GOOGLE -.->|"OIDC Token Exchange"| UI_AUTH
+
+    UI_AUTH -->|"Credentials / Token Payload"| SEC_OAUTH
+    UI_AUTH -->|"Standard Login"| SEC_JWT
+    UI_RES -->|"API Requests"| SEC_RBAC
+    UI_GUARD -->|"API Requests"| SEC_RBAC
+    UI_ADMIN -->|"API Requests"| SEC_RBAC
+
+    SEC_OAUTH -->|"Valid Token"| SEC_JWT
+    SEC_JWT -->|"Authenticated Identity"| SEC_RBAC
+    SEC_RBAC -->|"Enforce Policy"| SEC_ISOLATION
+
+    SEC_ISOLATION -->|"Registration Payload"| ENG_REG
+    SEC_ISOLATION -->|"Admin Analytics"| ENG_ALERTS
+    SEC_ISOLATION -->|"Topology Queries"| ENG_COMM
+    SEC_ISOLATION -->|"Gate Entry Logs"| ENG_COURIER
+    SEC_ISOLATION -->|"Security Scans"| ENG_INTAKE
+    SEC_ISOLATION -->|"PIN or QR Auth"| ENG_HANDOVER
+
+    ENG_REG -->|"Validate Flat"| ENG_COMM
+    ENG_INTAKE -->|"Request Optimal Slot"| ENG_SHELF
+    ENG_HANDOVER -->|"Trigger Capacity Release"| ENG_SHELF
+
+    ENG_REG <--> DB_USERS
+    ENG_ALERTS <--> DB_USERS
+    ENG_COMM <--> DB_COMM
+    ENG_COURIER <--> DB_COURIER
+    ENG_INTAKE <--> DB_PARCEL
+    ENG_SHELF <--> DB_SHELF
+    ENG_HANDOVER <--> DB_PASS
 
 <p align="center">
   <strong>Digital Chain of Custody & Smart Logistics Platform for Modern Gated Residential Communities</strong>
