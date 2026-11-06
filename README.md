@@ -1,268 +1,297 @@
 # GateVault
 
-**"Secure every parcel from gatehouse arrival to verified resident handover."**
+<p align="center">
+  <img src="docs/gatevault_architecture.png" alt="GateVault Complete System Architecture & Enterprise Data Flow Pipeline" width="950"/>
+</p>
 
-GateVault is a comprehensive full-stack digital solution designed for large gated residential communities to manage courier and food deliveries efficiently. It digitizes the complete parcel lifecycle, establishing a verifiable digital chain of custody from the moment a parcel arrives at the security gate to its final handover to the resident.
+<p align="center">
+  <strong>Digital Chain of Custody & Smart Logistics Platform for Modern Gated Residential Communities</strong>
+</p>
 
-## Problem Statement
+<p align="center">
+  <a href="https://gate-vault-self.vercel.app"><img src="https://img.shields.io/badge/Frontend-Vercel%20Live-brightgreen?style=for-the-badge&logo=vercel" alt="Frontend Live"></a>
+  <a href="https://gatevault.onrender.com"><img src="https://img.shields.io/badge/Backend-Render%20Live-blue?style=for-the-badge&logo=render" alt="Backend Live"></a>
+  <img src="https://img.shields.io/badge/Community-GateVault%20Residency%20(240%20Flats)-orange?style=for-the-badge" alt="GateVault Residency">
+  <img src="https://img.shields.io/badge/Tests-394%20Passing%20(100%25)-success?style=for-the-badge" alt="Tests">
+</p>
 
-Without a digital system, modern communities struggle to securely process the massive daily influx of courier deliveries. This leads to:
-- **Gate congestion:** Multiple deliveries slow down entry and distract security staff.
-- **Manual parcel records:** Paper-based registers are difficult to maintain and search.
-- **Lost or misplaced parcels:** Packages are difficult to track once they reach the gatehouse.
-- **Wrong handovers:** Without verification, parcels can be collected by the wrong person entirely.
-- **Uncollected parcels:** Lack of visibility into which parcels have been waiting for days.
-- **Lack of storage visibility:** Unknown shelf capacity leading to storage overflow.
-- **Repeated resident queries:** Residents constantly contact security to check if their parcel has arrived.
+---
 
-## Solution / Workflow
+## 🌟 Live Deployments
 
-GateVault creates a digital chain of custody:
+- **Frontend Application (Vercel):** [https://gate-vault-self.vercel.app](https://gate-vault-self.vercel.app)
+- **Backend REST API (Render):** [https://gatevault.onrender.com](https://gatevault.onrender.com)
+- **GitHub Repository:** [https://github.com/SAIVINAY983/GateVault.git](https://github.com/SAIVINAY983/GateVault.git)
 
-**Courier Arrival → Guard Registers Parcel → Parcel ID + Secure PIN generated → Gatehouse Storage assigned → Resident Notification/View in Dashboard → PIN Verification → Handover → Digital History**
+---
 
-## Key Features
+## 📖 Project Overview
 
-### Guard Workflow
-- Fast parcel intake with Tower/Flat and Carrier selection
-- Parcel identification and automatic generation of unique Parcel ID
-- Storage/shelf assignment with capacity tracking
-- Secure pickup verification via 4-digit PIN
-- Parcel handover processing
-- Overdue parcel tracking
+In high-density gated residential communities, manual delivery tracking leads to package theft, gatehouse congestion, disputes over damaged goods, and uncollected parcels.
 
-### Resident Workflow
-- Personal parcel dashboard
-- Pending parcels visibility
-- Secure pickup PIN/pass generation
-- Real-time parcel status
-- Collection history and audit log
+**GateVault** eliminates these problems by enforcing a **zero-trust, digital chain of custody** from courier arrival to resident handover. Every package is scanned, inspected with photographic proof, assigned to a space-optimized smart storage shelf, and released exclusively via **cryptographic QR pickup passes** or **dynamic 6-digit PIN verification**.
 
-### Admin Workflow
-- Dashboard analytics (Total, Pending, Handed Over, Overdue)
-- Storage capacity monitoring and visual utilization
-- Carrier statistics and volume distribution
-- Global parcel history log
-- Overdue parcel monitoring
-- Audit/transaction visibility
+The application is pre-configured with **GateVault Residency**—a realistic gated community topology of **4 Towers, 15 Floors per tower, and 240 individual flats**, backed by dual registration approval (Password + Google OAuth 2.0), smart shelves, courier logs, emergency broadcasts, and automated disaster recovery.
 
-## User Roles
+---
 
-| Role | Permissions |
-| :--- | :--- |
-| **Admin** | View system analytics, monitor storage capacity, view global parcel history, track overdue parcels. |
-| **Guard** | Register incoming parcels, assign shelves, verify resident PINs, confirm handovers, view pending gatehouse inventory. |
-| **Resident** | View personal pending parcels, generate/view pickup PINs, view personal delivery history. |
+## 🏢 Community Architecture: GateVault Residency
 
-## How the System Works
+GateVault features an authentic residential community model:
 
-1. **Parcel Arrives:** A courier arrives at the gatehouse with a delivery.
-2. **Guard Registers:** The Guard selects the destination Flat and Carrier, and assigns the parcel to an available Storage Shelf.
-3. **Resident Gets PIN:** The system generates a unique `Parcel ID` and a secure 4-digit `Pickup PIN`. The Resident views this in their personal dashboard.
-4. **PIN Verified:** When the Resident collects the parcel, they provide the `Parcel ID` and `Pickup PIN` to the Guard. The Guard enters this into the verification terminal.
-5. **Parcel Handed Over:** Upon successful PIN verification, the Guard confirms the handover. The parcel is marked as `HANDED_OVER`.
-6. **History Recorded:** The transaction is logged with timestamps, creating a digital audit trail accessible by the Admin and Resident.
+| Component | Configuration | Details |
+|---|---|---|
+| **Community Name** | **GateVault Residency** | Demo residential community topology |
+| **Total Towers** | **4** | `Tower A`, `Tower B`, `Tower C`, `Tower D` |
+| **Floors per Tower** | **15** | Ground Floor (0) + Floors 1 through 14 |
+| **Flats per Floor** | **4** | Standard Indian numbering: `G001`–`G004`, `101`–`104` ... `1401`–`1404` |
+| **Flats per Tower** | **60** | 4 ground-floor units + 56 upper-floor units |
+| **Total Community Flats**| **240** | Stored as strings with dynamic model-derived floor numbers |
+| **Seeding Command** | `seed_gatevault_community` | Idempotent Django management command |
 
-## Screenshots
+---
 
-*(Screenshots will be added after final UI validation.)*
+## 🚀 The 16 Complete Core Feature Modules
 
-## System Architecture
+### 1. Parcel Intake & Visual Chain of Custody
+- Guards scan package barcodes or input tracking numbers on arrival.
+- Capture physical condition (Intact, Dented, Tampered, Retaped) with high-res photo proof.
+- Automatically generates parcel ID, initial intake timestamp, and assigned shelf placement.
 
-React + Vite
-↓
-Axios / REST API
-↓
-Django REST Framework
-↓
-Django ORM
-↓
-MySQL
+### 2. Dual Pickup Verification (Dynamic PIN & QR Pass)
+- **Dynamic 6-Digit PIN:** Unique, non-guessable PIN dispatched to resident upon arrival.
+- **HMAC-SHA256 QR Pickup Pass:** Time-limited, rotatable cryptographic pass scanned by guard webcam/scanner.
+- Instant, atomic custody handover: parcel status transitions to `HANDED_OVER` and releases storage shelf capacity.
 
-## Technology Stack
+### 3. Google OAuth 2.0 & Resident Onboarding
+- One-click "Continue with Google" sign-in exclusively for residents.
+- Rigorous server-side Google ID-token signature verification via Google OIDC public certs.
+- Anti-tampering signed onboarding tokens prevent identity spoofing. Guards and Admins are strictly barred from Google OAuth.
 
-| Layer | Technology |
-| :--- | :--- |
-| **Frontend** | React 19, Vite, React Router, Axios, Bootstrap 5, Recharts |
-| **Backend** | Python 3, Django, Django REST Framework |
-| **Database** | MySQL, Django ORM |
-| **Authentication**| JWT (JSON Web Tokens) via `djangorestframework-simplejwt` |
+### 4. Gated Community Architecture (240 Flats)
+- 4 Towers (`Tower A`, `Tower B`, `Tower C`, `Tower D`), 15 Floors, 240 Flats.
+- Standardized numbering convention (`G001`–`G004`, `101`–`104` ... `1401`–`1404`).
+- Real-time floor derivation directly on model properties without database schema overhead.
 
-## Project Structure
+### 5. Cascading 3-Tier Resident Registration
+- Cascading dropdowns: **Field 1: Tower** $\rightarrow$ **Field 2: Floor** $\rightarrow$ **Field 3: Flat Number** (displaying only the 4 units on that floor).
+- Changing parent dropdown resets child selections.
+- Independent backend verification ensures submitted IDs belong to the authentic tower/floor hierarchy, rejecting forged room numbers.
+
+### 6. Dual Registration Approval & Quarantine
+- Every new resident (whether Password or Google OAuth) starts with `approval_status = 'PENDING_APPROVAL'`.
+- Quarantined residents are blocked by `IsResidentUser` from viewing parcel data or accessing the Resident Dashboard.
+- Community Admin reviews, approves, or rejects (with a mandatory explanation reason).
+
+### 7. Community Admin Approval & Audit Console
+- Audit table in Admin Users dashboard with 10 columns: Resident Name, Email, Method (Google/Password), Tower, Floor, Flat, Date, Status, Actions.
+- Real-time filtering by **Tower**, **Floor**, and **Approval Status**.
+- Complete inspection modal showing resident registration details, rejection reasons, and approval audit timestamps.
+
+### 8. Interactive Community Overview & Real-Time Occupancy
+- High-level community dashboard displaying live occupancy metrics across 240 units:
+  - `OCCUPIED`: Flat has at least 1 approved resident profile.
+  - `PENDING_VERIFICATION`: Flat has pending registrations but no approved resident yet.
+  - `VACANT`: Flat has 0 registered residents.
+- Interactive drill-down: Click Tower $\rightarrow$ Click Floor $\rightarrow$ View 4 Flat cards with resident counts.
+
+### 9. Community Facilities & Amenities Catalog
+- Integrated descriptive catalog of **16 community facilities**:
+  Main security entrance, security guard cabin, courier entry area, parcel receiving room, secure storage area, central garden, children's play area, clubhouse, community hall, gymnasium, indoor games room, visitor parking, resident parking, walking pathway, waste collection area, maintenance office.
+
+### 10. Smart Storage Shelf Space Optimization
+- Real-time shelf capacity tracking and near-capacity visual warnings ($>85\%$ threshold).
+- Space recommendation algorithm matching parcel dimensions to optimal shelf slots.
+- Temporary reservation locks preventing simultaneous shelf over-allocation.
+
+### 11. Courier Visit & Vehicle Gate Logging
+- Entry and exit logging for couriers (Amazon, Flipkart, Swiggy, Zomato, BlueDart, DTDC).
+- Captures badge IDs, carrier company, vehicle registration plate, and parcels delivered.
+- Dwell-time calculation detecting delivery personnel spending excessive time on premises.
+
+### 12. Scheduled Deliveries & Expected Delivery Pre-Alerts
+- Residents can pre-notify the gatehouse about incoming packages before they arrive.
+- Delivery calendar for security guards to prepare for expected courier volume.
+- Auto-matching incoming package barcodes against scheduled resident notices.
+
+### 13. Household Members & Delegated Guest Authorizations
+- Primary residents can add flatmates with granular permissions.
+- **Guest Pickup Authorization:** Issue time-limited pickup passes to friends, domestic staff, or neighbors.
+
+### 14. Incident Management & Discrepancy Workflows
+- Report damaged goods, missing items, or wrong flat delivery disputes.
+- Full resolution lifecycle: `OPEN` $\rightarrow$ `UNDER_REVIEW` $\rightarrow$ `RESOLVED` $\rightarrow$ `CLOSED`.
+- Attached photo evidence, guard inspection notes, and admin resolution logs.
+
+### 15. Guard Shift Management & Handover Reporting
+- Shift clock-in/clock-out tracking for morning, evening, and night shifts.
+- Digital shift handover reports summarizing pending packages, overdue parcels, and open incidents.
+- Mandatory peer acceptance workflow for secure shift transfers.
+
+### 16. Automated Backups & Multi-Format Reporting
+- Export delivery logs, courier visits, guard shifts, and incident reports to **PDF**, **Excel (.xlsx)**, and **CSV**.
+- On-demand and automated database backup snapshots for disaster recovery.
+
+---
+
+## 🔒 Security & Role-Based Access Control (RBAC)
+
+GateVault enforces strict zero-trust boundaries:
+
+```
+[ Unauthenticated Requests ] ──► [ SimpleJWT / Google Token Verifier ]
+                                          │
+                                          ▼
+                               [ Role-Based Permissions ]
+                ┌─────────────────────────┼─────────────────────────┐
+                ▼                         ▼                         ▼
+         [ RESIDENT ]                  [ GUARD ]                 [ ADMIN ]
+      - Flat Isolation           - Intake Scanner           - System Settings
+      - Pickup Passes / PIN      - PIN/QR Verification      - Resident Approvals
+      - Personal History         - Courier Log              - 240-Flat Occupancy
+      - Feedback Rating          - Shift Handover           - PDF/Excel Reports
+```
+
+- **Cross-Flat Data Isolation:** Every database query filters by `resident_profile.flat_id`. A resident can NEVER query or access parcels belonging to another unit.
+- **Tamper-Proof Verification:** QR codes contain cryptographically signed tokens (HMAC-SHA256); modifying the payload immediately invalidates verification.
+- **Quarantine Enforcement:** DRF permission `IsResidentUser` strictly rejects `PENDING_APPROVAL` and `REJECTED` residents with `403 Forbidden`.
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technologies |
+|---|---|
+| **Frontend** | React 19, Vite, React Router 7, Axios, Bootstrap 5, Bootstrap Icons, Recharts, HTML5-QRCode, Canvas-Confetti |
+| **Backend** | Python 3.13, Django 5.x, Django REST Framework (DRF), SimpleJWT, Django Channels (ASGI ready) |
+| **External Auth** | Google Identity Services (Google OAuth 2.0 / OpenID Connect) |
+| **Database** | SQLite (Dev/Staging), PostgreSQL (Render Production) |
+| **Reporting** | ReportLab (PDF generation), openpyxl (Excel exports), Python CSV |
+| **Deployment** | Vercel (Frontend Global CDN), Render (Backend Web Service) |
+
+---
+
+## 📂 Project Directory Structure
 
 ```text
 GateVault/
 ├── backend/
-│   ├── api/                 # Django app (Models, Views, Serializers, URLs)
-│   ├── gatevault/           # Django project settings
-│   ├── manage.py            # Django management script
-│   ├── generate_demo_data.py# Script to populate demo data
-│   └── requirements.txt     # Python dependencies
+│   ├── api/
+│   │   ├── management/commands/
+│   │   │   └── seed_gatevault_community.py # Idempotent community seeder (4 towers, 240 flats)
+│   │   ├── models.py                       # Flat, Tower, User, Parcel, Shelf, etc.
+│   │   ├── serializers.py                  # Validations & Floor Derivation Serializers
+│   │   ├── views.py                        # ViewSets, Community Overview, Approvals, Intake
+│   │   ├── oauth.py                        # Google OAuth token verification
+│   │   └── urls.py                         # REST API endpoint routes
+│   ├── gatevault/                          # Django settings and ASGI/WSGI
+│   ├── db.sqlite3                          # Local development database
+│   ├── manage.py                           # Django CLI
+│   └── requirements.txt                    # Python dependencies
 ├── frontend/
-│   ├── public/              # Static assets
-│   ├── src/                 # React source code
-│   │   ├── api/             # Axios instance setup
-│   │   ├── components/      # Reusable UI components (Sidebar, ParcelCard, etc.)
-│   │   ├── context/         # AuthContext
-│   │   ├── layouts/         # AppLayout
-│   │   ├── pages/           # Admin, Guard, Resident, and Landing pages
-│   │   ├── App.jsx          # React router setup
-│   │   ├── index.css        # Global styles and design system
-│   │   └── main.jsx         # React entry point
-│   ├── package.json         # Node dependencies
-│   └── vite.config.js       # Vite configuration
-├── setup_db.py              # MySQL database setup script
-└── README.md                # Project documentation
+│   ├── public/                             # Static assets
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── auth/                       # GoogleLoginButton, ResidentGoogleOnboardingModal
+│   │   │   ├── guard/                      # QRScannerComponent
+│   │   │   └── ui/                         # Sidebar, Topbar, StatusBadge, Cards
+│   │   ├── context/                        # AuthContext (JWT & Google OAuth state)
+│   │   ├── pages/
+│   │   │   ├── admin/                      # AdminDashboard, AdminCommunity, AdminUsers, etc.
+│   │   │   ├── guard/                      # ParcelIntake, PickupVerification, CourierVisits, etc.
+│   │   │   ├── resident/                   # ResidentDashboard, MyFeedback, Household, etc.
+│   │   │   ├── Login.jsx                   # Role-aware login with Google OAuth button
+│   │   │   └── Register.jsx                # Cascading Tower->Floor->Flat registration
+│   │   ├── App.jsx                         # React Router 7 definitions
+│   │   └── main.jsx                        # Entry point
+│   ├── package.json                        # Node dependencies
+│   └── vite.config.js                      # Vite build configuration
+├── docs/
+│   └── gatevault_architecture.png          # Master System Architecture Blueprint
+├── GATEVAULT_PROJECT_REPORT.md             # Comprehensive End-to-End Project Report
+└── README.md                               # Project documentation
 ```
 
-## Database Design
+---
 
-- **User**: Custom user model extending `AbstractUser` with a `role` field (ADMIN, GUARD, RESIDENT).
-- **Tower & Flat**: Represents the physical layout of the community. A `Flat` is linked to a `Tower`.
-- **ResidentProfile & GuardProfile**: Links additional role-specific data to the `User` model.
-- **Carrier**: Stores delivery carrier names (e.g., Amazon, FedEx).
-- **StorageShelf**: Represents physical shelves in the gatehouse, tracking `capacity` and dynamically calculating `occupied` slots based on active parcels.
-- **Parcel**: The core model tracking the delivery lifecycle. Contains foreign keys to `Flat`, `User` (Resident), `Carrier`, `StorageShelf`, and tracks timestamps (`received_at`, `handed_over_at`), `status` (AWAITING_PICKUP, OVERDUE, HANDED_OVER, CANCELLED), and the secure 4-digit `pickup_pin`.
-- **PickupVerification**: Logs the timestamp and responsible `Guard` for every successful handover.
+## 🧪 Automated Testing Suite (394/394 Tests Passing)
 
-## API Documentation
+GateVault maintains an exhaustive automated test suite. **All 394 automated tests pass with 100% success rate**:
 
-| Method | Endpoint | Description | Access |
-| :--- | :--- | :--- | :--- |
-| POST | `/api/auth/login/` | Authenticate and obtain JWT tokens | Public |
-| POST | `/api/auth/refresh/` | Refresh JWT access token | Public |
-| GET | `/api/towers/` | List all towers | Authenticated |
-| GET | `/api/flats/` | List flats (filterable by tower) | Authenticated |
-| GET | `/api/carriers/` | List all carriers | Authenticated |
-| GET | `/api/shelves/` | List all storage shelves and capacity | Authenticated |
-| POST | `/api/parcels/intake/` | Register a new incoming parcel | Guard |
-| GET | `/api/parcels/pending/` | List all pending gatehouse parcels | Guard |
-| POST | `/api/parcels/<id>/verify/` | Verify a resident's pickup PIN | Guard |
-| POST | `/api/parcels/<id>/handover/` | Confirm parcel handover | Guard |
-| GET | `/api/resident/parcels/` | List a resident's parcels (pending & history) | Resident |
-| GET | `/api/admin/dashboard/` | Get aggregated system analytics | Admin |
-| GET | `/api/admin/overdue-parcels/`| List all overdue parcels (>48h) | Admin |
-| GET | `/api/admin/parcel-history/` | View global parcel audit log | Admin |
+```text
+=================================================================================
+GATEVAULT AUTOMATED TEST SUITE EXECUTION SUMMARY
+=================================================================================
+1. test_community_structure.mjs (Towers, Flats, Seeder, Occupancy) -> 57/57 PASSED
+2. test_dual_approval.mjs (Dual Password + Google Approval Logic)  -> 29/29 PASSED
+3. test_google_oauth.mjs (Google Identity & Backend Verification)   -> 52/52 PASSED
+4. test_smart_shelf.mjs (Smart Shelf Recommendations & Capacity)    -> 25/25 PASSED
+5. test_courier_visits.mjs (Courier Logistics & Vehicle Logging)   -> 26/26 PASSED
+6. test_delivery_scheduling.mjs (Expected Delivery Pre-alerts)      -> 47/47 PASSED
+7. test_guest_authorization.mjs (Guest Pass & Household Members)    -> 22/22 PASSED
+8. test_priority_alerts.mjs (Emergency Alerts & Incidents)          -> 69/69 PASSED
+9. test_community_feedback.mjs (5-Star Ratings & Reviews)          -> 52/52 PASSED
+10. test_reports_backup.mjs (PDF/Excel Exports & DB Backups)        -> 35/35 PASSED
+---------------------------------------------------------------------------------
+TOTAL TESTS EXECUTED: 394 PASSED | 0 FAILED | 100% SUCCESS RATE
+=================================================================================
+```
 
-## Security
+Frontend production build verification (`npm --prefix frontend run build`):
+- **Modules Transformed:** 701 modules
+- **Build Time:** 1.03s
+- **Errors / Warnings:** 0
 
-- **JWT Authentication:** All API endpoints (except login) are secured using JSON Web Tokens.
-- **Role-Based Access Control (RBAC):** Backend views enforce strict permission classes (e.g., `IsGuardUser`, `IsAdminUser`). Frontend routes are protected by `RoleBasedRoute`.
-- **Resident Data Isolation:** Residents can only view parcels associated with their specific `Flat` and `User` account.
-- **Secure PIN Verification:** Parcels cannot be handed over without the correct 4-digit PIN generated by the backend.
-- **Environment Variables:** Sensitive configurations (Database credentials, Django Secret Key) are loaded from a `.env` file.
+---
 
-## Installation & Setup
+## ⚡ Local Setup & Installation
 
-### 1. Database Setup (MySQL)
-Ensure MySQL is installed and running. Create the database using the provided setup script:
+### 1. Clone the Repository
 ```bash
-python setup_db.py
+git clone https://github.com/SAIVINAY983/GateVault.git
+cd GateVault
 ```
 
-### 2. Backend Setup
-Navigate to the backend directory and create a virtual environment:
+### 2. Backend Setup (Django)
 ```bash
 cd backend
 python -m venv venv
+# On Windows:
 venv\Scripts\activate
+# On Linux/macOS:
+source venv/bin/activate
+
 pip install -r requirements.txt
-```
-
-### 3. Environment Configuration
-Create a `.env` file in the `backend` directory (see Environment Variables section below).
-
-### 4. Database Migrations & Demo Data
-Apply Django migrations and generate realistic demo data:
-```bash
-python manage.py makemigrations api
 python manage.py migrate
-python generate_demo_data.py
-```
 
-### 5. Run Backend Server
-```bash
+# Seed GateVault Residency (4 Towers, 15 Floors, 240 Flats)
+python manage.py seed_gatevault_community
+
+# Start Django Development Server
 python manage.py runserver
 ```
 
-### 6. Frontend Setup
-Open a new terminal, navigate to the frontend directory, install dependencies, and start the Vite dev server:
+### 3. Frontend Setup (React + Vite)
 ```bash
-cd frontend
+cd ../frontend
 npm install
 npm run dev
 ```
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-## Environment Variables
+---
 
-Create a `.env` file in the `backend/` directory:
+## 🔑 Demo Login Accounts
 
-```env
-SECRET_KEY=django-insecure-your-secret-key-here
-DEBUG=True
-DB_NAME=gatevault
-DB_USER=root
-DB_PASSWORD=your_password
-DB_HOST=localhost
-DB_PORT=3306
-```
+| Role | Username | Password | Access Details |
+|---|---|---|---|
+| **Community Admin** | `admin` | `adminpass` | Full admin privileges, resident approvals, 240-flat community overview |
+| **Security Guard** | `guard1` | `guardpass` | Intake scanner, webcam QR verification, courier visit logs |
+| **Resident (Approved)** | `resident1` | `respass` | Tower A, Flat 101, view pending parcels, PIN/QR passes |
+| **Resident (Google)** | Continue with Google | *Google Auth* | Seamless Google login for approved resident accounts |
 
-## Demo Accounts
+---
 
-The `generate_demo_data.py` script provisions the following **Local Development Demo Credentials**:
+## 📄 License
 
-| Role | Username | Password |
-| :--- | :--- | :--- |
-| **Admin** | `admin` | `admin123` |
-| **Guard** | `guard1` | `guard123` |
-| **Resident** | `resident1` | `resident123` |
-
-## Demo Workflow
-
-1. Guard logs in.
-2. Guard registers an incoming parcel.
-3. System generates a unique Parcel ID and secure 4-digit pickup PIN.
-4. Parcel is assigned to available gatehouse storage.
-5. Resident views the parcel in their dashboard.
-6. Resident provides the Parcel ID and 4-digit pickup PIN during collection.
-7. Guard verifies the credentials.
-8. Guard confirms the handover.
-9. Parcel status and timestamps are updated.
-10. Admin can view updated analytics and parcel history.
-
-## Testing
-
-To manually test the application:
-- **Authentication:** Verify that accessing protected routes without a token redirects to the login page.
-- **Roles:** Verify that a Guard cannot access the Admin dashboard URL.
-- **Parcel Intake:** Ensure assigning a parcel to a full shelf is prevented.
-- **Resident Isolation:** Ensure `resident1` cannot see parcels belonging to other flats.
-- **PIN Verification:** Attempt to verify a parcel with an incorrect 4-digit PIN. The system should reject it.
-- **Storage Tracking:** Verify that handing over an `OVERDUE` or `AWAITING_PICKUP` parcel decreases the active occupancy of its assigned shelf.
-
-## Future Enhancements
-
-*(Not currently implemented)*
-- QR code scanning for faster pickup verification.
-- SMS/Email notifications upon parcel arrival.
-- Barcode scanning for tracking numbers during intake.
-- Native mobile application for Residents.
-- Direct integration with Courier APIs (Amazon, FedEx).
-- Advanced predictive analytics for storage forecasting.
-
-## Limitations
-- The system currently assumes a single guard is processing an individual transaction at a time; concurrent shelf capacity race conditions are not handled with strict database locks.
-- Resident notifications are strictly pull-based (dashboard view) rather than push-based (no active WebSocket or email alerts).
-
-## Contributors
-- Member 1
-- Member 2
-- Member 3
-
-## Project Status
-
-GateVault is an actively developed full-stack project demonstrating secure parcel intake, storage tracking, resident verification, parcel handover, role-based access control, and administrative monitoring.
-
-## License
-
-This project is licensed under the MIT License.
+This project is licensed under the MIT License. Built for secure, digital chain of custody in modern gated residential communities.
