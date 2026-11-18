@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../api/axiosInstance';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { LoadingSpinner, EmptyState, ErrorState } from '../../components/ui/StateComponents';
+import { useTranslation } from '../../i18n/i18n';
 
 const GuardDashboard = () => {
+    const { t, i18n } = useTranslation();
     const [parcels, setParcels] = useState([]);
     const [expectedDeliveries, setExpectedDeliveries] = useState([]);
     const [activeAlertsCount, setActiveAlertsCount] = useState(0);
@@ -425,25 +427,25 @@ const GuardDashboard = () => {
                 <div className="col-4 col-md-2">
                     <div className="gv-card p-3 d-flex align-items-center border-start border-4 border-warning">
                         <h3 className="fw-bold mb-0 me-3">{parcels.filter(p => !p.is_overdue).length}</h3>
-                        <div className="text-muted small text-uppercase fw-semibold" style={{ letterSpacing: '0.05em' }}>Pending</div>
+                        <div className="text-muted small text-uppercase fw-semibold" style={{ letterSpacing: '0.05em' }}>{t('status_labels.AWAITING_PICKUP', 'Pending')}</div>
                     </div>
                 </div>
                 <div className="col-4 col-md-2">
                     <div className="gv-card p-3 d-flex align-items-center border-start border-4 border-info">
                         <h3 className="fw-bold mb-0 me-3">{expectedDeliveries.length}</h3>
-                        <div className="text-muted small text-uppercase fw-semibold" style={{ letterSpacing: '0.05em' }}>Expected Today</div>
+                        <div className="text-muted small text-uppercase fw-semibold" style={{ letterSpacing: '0.05em' }}>{t('resident.expected_today', 'Expected Today')}</div>
                     </div>
                 </div>
                 <div className="col-4 col-md-2">
                     <div className="gv-card p-3 d-flex align-items-center border-start border-4 border-danger">
                         <h3 className="fw-bold mb-0 me-3">{parcels.filter(p => p.is_overdue).length}</h3>
-                        <div className="text-muted small text-uppercase fw-semibold" style={{ letterSpacing: '0.05em' }}>Overdue</div>
+                        <div className="text-muted small text-uppercase fw-semibold" style={{ letterSpacing: '0.05em' }}>{t('notifications_page.overdue_title', 'Overdue')}</div>
                     </div>
                 </div>
                 <div className="col-6 col-md-3">
                     <div className="gv-card p-3 d-flex align-items-center border-start border-4 border-primary">
                         <h3 className="fw-bold mb-0 me-3">{parcels.filter(p => new Date(p.received_at).toDateString() === new Date().toDateString()).length}</h3>
-                        <div className="text-muted small text-uppercase fw-semibold" style={{ letterSpacing: '0.05em' }}>Received Today</div>
+                        <div className="text-muted small text-uppercase fw-semibold" style={{ letterSpacing: '0.05em' }}>{t('guard.handovers_today_desc', 'Received Today')}</div>
                     </div>
                 </div>
                 <div className="col-6 col-md-3">
@@ -451,7 +453,7 @@ const GuardDashboard = () => {
                         <h3 className="fw-bold mb-0 me-3">
                             {liveReport ? liveReport.parcels_handed_over_count : '--'}
                         </h3>
-                        <div className="text-muted small text-uppercase fw-semibold" style={{ letterSpacing: '0.05em' }}>Shift Handovers</div>
+                        <div className="text-muted small text-uppercase fw-semibold" style={{ letterSpacing: '0.05em' }}>{t('guard.handovers_today', 'Shift Handovers')}</div>
                     </div>
                 </div>
             </div>
@@ -460,18 +462,18 @@ const GuardDashboard = () => {
             <div className="gv-card overflow-hidden mb-5 border-info border-opacity-50">
                 <div className="card-header bg-white p-3 border-bottom d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between">
                     <div>
-                        <h5 className="fw-bold mb-0 text-info">EXPECTED DELIVERIES</h5>
-                        <p className="text-muted small mb-0 mt-1">Deliveries residents have registered as expected.</p>
+                        <h5 className="fw-bold mb-0 text-info">{t('resident.expected_today', 'EXPECTED DELIVERIES')}</h5>
+                        <p className="text-muted small mb-0 mt-1">{t('resident.expected_today_desc', 'Deliveries residents have registered as expected.')}</p>
                     </div>
-                    <span className="badge bg-info mt-2 mt-sm-0 rounded-pill text-dark">{expectedDeliveries.length} Expected</span>
+                    <span className="badge bg-info mt-2 mt-sm-0 rounded-pill text-dark">{expectedDeliveries.length} {t('common.all', 'Expected')}</span>
                 </div>
                 
                 {expectedDeliveries.length === 0 ? (
                     <div className="p-4">
                         <EmptyState 
                             icon="bi-box-seam" 
-                            title="No expected deliveries." 
-                            message="Residents have not registered any upcoming deliveries." 
+                            title={t('common.no_data', 'No expected deliveries.')} 
+                            message={t('resident.no_parcels_desc', 'Residents have not registered any upcoming deliveries.')} 
                         />
                     </div>
                 ) : (
@@ -479,12 +481,12 @@ const GuardDashboard = () => {
                         <table className="table table-hover align-middle mb-0 border-0">
                             <thead className="bg-light text-muted small text-uppercase" style={{ letterSpacing: '0.05em' }}>
                                 <tr>
-                                    <th className="ps-4 py-3 fw-semibold border-bottom-0">Resident</th>
-                                    <th className="py-3 fw-semibold border-bottom-0">Flat</th>
-                                    <th className="py-3 fw-semibold border-bottom-0">Tracking ID</th>
-                                    <th className="py-3 fw-semibold border-bottom-0">Courier</th>
-                                    <th className="py-3 fw-semibold border-bottom-0">Payment</th>
-                                    <th className="pe-4 py-3 fw-semibold border-bottom-0 text-end">Action</th>
+                                    <th className="ps-4 py-3 fw-semibold border-bottom-0">{t('auth.resident', 'Resident')}</th>
+                                    <th className="py-3 fw-semibold border-bottom-0">{t('common.flat', 'Flat')}</th>
+                                    <th className="py-3 fw-semibold border-bottom-0">{t('resident.tracking_number', 'Tracking ID')}</th>
+                                    <th className="py-3 fw-semibold border-bottom-0">{t('courier.carrier', 'Courier')}</th>
+                                    <th className="py-3 fw-semibold border-bottom-0">{t('common.status', 'Payment')}</th>
+                                    <th className="pe-4 py-3 fw-semibold border-bottom-0 text-end">{t('common.actions', 'Action')}</th>
                                 </tr>
                             </thead>
                             <tbody className="border-top-0">
@@ -495,7 +497,7 @@ const GuardDashboard = () => {
                                         <td className="py-3 fw-medium">{exp.tracking_id}</td>
                                         <td className="py-3">
                                             {exp.courier_name}
-                                            {exp.delivery_type === 'FOOD' && <span className="badge bg-warning text-dark ms-2">Food</span>}
+                                            {exp.delivery_type === 'FOOD' && <span className="badge bg-warning text-dark ms-2">{t('guard.food_grocery', 'Food')}</span>}
                                         </td>
                                         <td className="py-3">
                                             {exp.payment_type === 'COD' ? (
@@ -506,7 +508,7 @@ const GuardDashboard = () => {
                                         </td>
                                         <td className="pe-4 py-3 text-end">
                                             <button onClick={() => setSelectedExpected(exp)} className="btn btn-sm btn-outline-info fw-medium">
-                                                View Details
+                                                {t('common.view', 'View Details')}
                                             </button>
                                         </td>
                                     </tr>
@@ -520,16 +522,16 @@ const GuardDashboard = () => {
             {/* PARCELS AWAITING PICKUP SECTION */}
             <div className="gv-card overflow-hidden">
                 <div className="card-header bg-white p-3 border-bottom d-flex align-items-center justify-content-between">
-                    <h5 className="fw-bold mb-0">Parcels Awaiting Pickup</h5>
-                    <span className="badge bg-primary rounded-pill">{parcels.length} Total</span>
+                    <h5 className="fw-bold mb-0">{t('guard.parcels_in_vault', 'Parcels Awaiting Pickup')}</h5>
+                    <span className="badge bg-primary rounded-pill">{parcels.length} {t('common.all', 'Total')}</span>
                 </div>
                 
                 {parcels.length === 0 ? (
                     <div className="p-4">
                         <EmptyState 
                             icon="bi-box2" 
-                            title="No pending parcels" 
-                            message="All parcels have been picked up or none are currently registered." 
+                            title={t('resident.no_parcels_title', 'No pending parcels')} 
+                            message={t('resident.no_parcels_desc', 'All parcels have been picked up or none are currently registered.')} 
                         />
                     </div>
                 ) : (
@@ -537,14 +539,14 @@ const GuardDashboard = () => {
                         <table className="table table-hover align-middle mb-0">
                             <thead className="bg-light text-muted small text-uppercase" style={{ letterSpacing: '0.05em' }}>
                                 <tr>
-                                    <th className="ps-4 py-3 fw-semibold">Parcel ID</th>
-                                    <th className="py-3 fw-semibold">Flat</th>
-                                    <th className="py-3 fw-semibold">Resident</th>
-                                    <th className="py-3 fw-semibold">Carrier</th>
-                                    <th className="py-3 fw-semibold">Condition</th>
-                                    <th className="py-3 fw-semibold">Shelf</th>
-                                    <th className="py-3 fw-semibold">Status</th>
-                                    <th className="pe-4 py-3 fw-semibold text-end">Action</th>
+                                    <th className="ps-4 py-3 fw-semibold">{t('resident.parcel_id', 'Parcel ID')}</th>
+                                    <th className="py-3 fw-semibold">{t('common.flat', 'Flat')}</th>
+                                    <th className="py-3 fw-semibold">{t('auth.resident', 'Resident')}</th>
+                                    <th className="py-3 fw-semibold">{t('courier.carrier', 'Carrier')}</th>
+                                    <th className="py-3 fw-semibold">{t('resident.condition', 'Condition')}</th>
+                                    <th className="py-3 fw-semibold">{t('admin.smart_shelves_title', 'Shelf')}</th>
+                                    <th className="py-3 fw-semibold">{t('common.status', 'Status')}</th>
+                                    <th className="pe-4 py-3 fw-semibold text-end">{t('common.actions', 'Action')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -563,7 +565,7 @@ const GuardDashboard = () => {
                                         <td className="py-3"><StatusBadge status={p.status} isOverdue={p.is_overdue} /></td>
                                         <td className="pe-4 py-3 text-end">
                                             <button onClick={() => navigate('/guard/verify', { state: { parcel_id: p.parcel_id } })} className="btn btn-sm btn-outline-primary fw-medium">
-                                                Verify
+                                                {t('guard.verify_pickup_btn', 'Verify')}
                                             </button>
                                         </td>
                                     </tr>

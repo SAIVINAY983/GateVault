@@ -2,9 +2,12 @@ import React, { useContext, useState } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import axiosInstance from '../../api/axiosInstance';
+import { useTranslation } from '../../i18n/i18n';
+import LanguageSelector from '../../components/ui/LanguageSelector';
 
 const PendingApprovalNotice = () => {
     const { user, logout, updateUserApprovalStatus } = useContext(AuthContext);
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const [checking, setChecking] = useState(false);
     const [checkMessage, setCheckMessage] = useState('');
@@ -21,14 +24,14 @@ const PendingApprovalNotice = () => {
             // Check if profile has been updated/approved
             const res = await axiosInstance.get('notifications/unread-count/');
             // If the user is approved, the API request succeeds without 403
-            setCheckMessage('Status updated! Redirecting to your dashboard...');
+            setCheckMessage(t('auth.registration_submitted_msg', 'Status updated! Redirecting to your dashboard...'));
             updateUserApprovalStatus && updateUserApprovalStatus('APPROVED');
             setTimeout(() => {
                 navigate('/resident');
             }, 1000);
         } catch (err) {
             if (err.response?.status === 403) {
-                setCheckMessage('Your account is still awaiting Community Admin approval. Please check back shortly.');
+                setCheckMessage(t('auth.pending_approval_body', 'Your account is still awaiting Community Admin approval. Please check back shortly.'));
             } else {
                 setCheckMessage('Could not verify status. Please try again.');
             }
@@ -40,7 +43,12 @@ const PendingApprovalNotice = () => {
     const isRejected = user?.approval_status === 'REJECTED';
 
     return (
-        <div className="container py-5 d-flex align-items-center justify-content-center min-vh-100">
+        <div className="container py-5 d-flex flex-column align-items-center justify-content-center min-vh-100 position-relative">
+            {/* Language Selector Top Bar */}
+            <div className="position-absolute top-0 end-0 p-3 p-md-4">
+                <LanguageSelector variant="light" size="sm" />
+            </div>
+
             <div className="card border-0 shadow-lg rounded-4 overflow-hidden" style={{ maxWidth: '580px', width: '100%' }}>
                 {/* Header Strip */}
                 <div className={`p-4 text-center text-white ${isRejected ? 'bg-danger' : 'bg-primary'}`} 
@@ -49,10 +57,10 @@ const PendingApprovalNotice = () => {
                         <i className={`bi ${isRejected ? 'bi-shield-x' : 'bi-clock-history'} fs-1`}></i>
                     </div>
                     <h3 className="fw-bold mb-1">
-                        {isRejected ? 'Registration Not Approved' : 'Registration Pending Approval'}
+                        {isRejected ? t('auth.rejected_title', 'Registration Not Approved') : t('auth.pending_approval_title', 'Registration Pending Approval')}
                     </h3>
                     <p className="mb-0 text-white-50 small">
-                        {isRejected ? 'GateVault Community Access Denied' : 'GateVault Community Security Verification'}
+                        {isRejected ? t('auth.rejected_subtitle', 'GateVault Community Access Denied') : t('auth.pending_approval_subtitle', 'GateVault Community Security Verification')}
                     </p>
                 </div>
 
@@ -68,11 +76,11 @@ const PendingApprovalNotice = () => {
                         <p className="text-muted leading-relaxed">
                             {isRejected ? (
                                 <>
-                                    Your resident registration request for <strong>GateVault</strong> was reviewed and not approved by the Community Admin.
+                                    {t('auth.rejected_body', 'Your resident registration request was reviewed and not approved by the Community Admin.')}
                                 </>
                             ) : (
                                 <>
-                                    Thank you for registering with <strong>GateVault</strong>. To maintain high community security and protect resident deliveries, all new accounts require verification by the Community Admin before access is granted.
+                                    {t('auth.pending_approval_body', 'Your account registration has been successfully received and is currently under review by the Community Administration. As a zero-trust residential community, all new resident accounts must be verified before gaining access to parcel data and community features.')}
                                 </>
                             )}
                         </p>
@@ -81,32 +89,32 @@ const PendingApprovalNotice = () => {
                     {/* Account Details Box */}
                     <div className="bg-light rounded-3 p-3 mb-4 border">
                         <h6 className="fw-bold text-dark small text-uppercase mb-3" style={{ letterSpacing: '0.05em' }}>
-                            Registration Details
+                            {t('common.details', 'Registration Details')}
                         </h6>
                         <div className="d-flex justify-content-between py-1 border-bottom small">
-                            <span className="text-muted">Resident Name:</span>
-                            <span className="fw-semibold text-dark">{user?.name || user?.username || 'Resident'}</span>
+                            <span className="text-muted">{t('auth.first_name', 'Resident Name')}:</span>
+                            <span className="fw-semibold text-dark">{user?.name || user?.username || t('auth.resident', 'Resident')}</span>
                         </div>
                         <div className="d-flex justify-content-between py-1 border-bottom small">
-                            <span className="text-muted">Account Email:</span>
+                            <span className="text-muted">{t('auth.email_address', 'Account Email')}:</span>
                             <span className="fw-semibold text-dark">{user?.email || 'N/A'}</span>
                         </div>
                         {user?.tower && (
                             <div className="d-flex justify-content-between py-1 border-bottom small">
-                                <span className="text-muted">Assigned Tower:</span>
+                                <span className="text-muted">{t('common.tower', 'Assigned Tower')}:</span>
                                 <span className="fw-semibold text-dark">{user.tower}</span>
                             </div>
                         )}
                         {user?.flat && (
                             <div className="d-flex justify-content-between py-1 border-bottom small">
-                                <span className="text-muted">Flat Number:</span>
-                                <span className="fw-semibold text-dark">Flat {user.flat}</span>
+                                <span className="text-muted">{t('common.flat', 'Flat Number')}:</span>
+                                <span className="fw-semibold text-dark">{t('common.flat', 'Flat')} {user.flat}</span>
                             </div>
                         )}
                         <div className="d-flex justify-content-between py-1 small">
-                            <span className="text-muted">Current Status:</span>
+                            <span className="text-muted">{t('common.status', 'Current Status')}:</span>
                             <span className={`badge ${isRejected ? 'bg-danger' : 'bg-warning text-dark'}`}>
-                                {isRejected ? 'REJECTED' : 'PENDING APPROVAL'}
+                                {isRejected ? t('status_labels.REJECTED', 'REJECTED') : t('status_labels.PENDING_APPROVAL', 'PENDING APPROVAL')}
                             </span>
                         </div>
                     </div>
@@ -114,7 +122,7 @@ const PendingApprovalNotice = () => {
                     {/* Rejection reason if applicable */}
                     {isRejected && user?.rejection_reason && (
                         <div className="alert alert-danger border-0 bg-danger bg-opacity-10 text-danger rounded-3 p-3 mb-4 small">
-                            <strong>Reason for rejection:</strong>
+                            <strong>{t('admin.rejection_reason_label', 'Reason for rejection')}:</strong>
                             <p className="mb-0 mt-1">{user.rejection_reason}</p>
                         </div>
                     )}
@@ -131,11 +139,11 @@ const PendingApprovalNotice = () => {
                                 {checking ? (
                                     <>
                                         <span className="spinner-border spinner-border-sm me-2"></span>
-                                        Checking Approval Status...
+                                        {t('auth.checking_status', 'Checking Approval Status...')}
                                     </>
                                 ) : (
                                     <>
-                                        <i className="bi bi-arrow-clockwise me-1"></i> Check Approval Status
+                                        <i className="bi bi-arrow-clockwise me-1"></i> {t('auth.check_status_now', 'Check Approval Status')}
                                     </>
                                 )}
                             </button>
@@ -145,13 +153,13 @@ const PendingApprovalNotice = () => {
                             className="btn btn-outline-secondary py-2 fw-semibold rounded-pill"
                             onClick={handleSignOut}
                         >
-                            <i className="bi bi-box-arrow-right me-1"></i> Sign Out
+                            <i className="bi bi-box-arrow-right me-1"></i> {t('auth.sign_out', 'Sign Out')}
                         </button>
                     </div>
 
                     <div className="text-center mt-4">
                         <small className="text-muted">
-                            Need urgent access? Contact your building management or security gatehouse desk.
+                            {t('auth.contact_admin', 'Need urgent access? Contact your building management or security gatehouse desk.')}
                         </small>
                     </div>
                 </div>

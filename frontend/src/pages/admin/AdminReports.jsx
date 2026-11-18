@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../api/axiosInstance';
 import { LoadingSpinner, EmptyState, ErrorState } from '../../components/ui/StateComponents';
 import StatusBadge from '../../components/ui/StatusBadge';
+import { useTranslation } from '../../i18n/i18n';
 
 const REPORT_CATEGORIES = [
     { key: 'PARCEL_DELIVERY', label: 'Parcel Delivery', icon: 'bi-box-seam', description: 'Log of delivered, pending, and received parcels' },
@@ -17,6 +18,7 @@ const REPORT_CATEGORIES = [
 ];
 
 const AdminReports = () => {
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState('REPORTS'); // 'REPORTS' | 'BACKUPS'
     const [summaryMetrics, setSummaryMetrics] = useState(null);
     const [activeCategory, setActiveCategory] = useState('PARCEL_DELIVERY');

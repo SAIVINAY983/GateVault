@@ -42,7 +42,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'Noto Sans Devanagari', 'Noto Sans Telugu', system-ui, -apple-system, sans-serif;
   background-color: var(--gv-bg-main);
   color: var(--gv-text-main);
   margin: 0;

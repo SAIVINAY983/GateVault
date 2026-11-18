@@ -5,8 +5,10 @@ import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tool
 import DashboardCard from '../../components/ui/DashboardCard';
 import StarRating from '../../components/ui/StarRating';
 import { LoadingSpinner, ErrorState } from '../../components/ui/StateComponents';
+import { useTranslation } from '../../i18n/i18n';
 
 const AdminDashboard = () => {
+    const { t } = useTranslation();
     const [stats, setStats] = useState(null);
     const [incidentCount, setIncidentCount] = useState(0);
     const [feedbackAnalytics, setFeedbackAnalytics] = useState(null);
@@ -105,17 +107,17 @@ const AdminDashboard = () => {
         <div className="container-fluid px-0">
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                    <h2 className="fw-bold text-dark mb-1">Good morning, Admin</h2>
-                    <p className="text-muted">Gatehouse operations overview and real-time analytics.</p>
+                    <h2 className="fw-bold text-dark mb-1">{t('admin.dashboard_title', 'Good morning, Admin')}</h2>
+                    <p className="text-muted">{t('admin.dashboard_subtitle', 'Gatehouse operations overview and real-time analytics.')}</p>
                 </div>
                 <div className="d-flex gap-2">
                     <Link to="/admin/community" className="btn btn-outline-primary d-flex align-items-center gap-2">
                         <i className="bi bi-buildings"></i>
-                        <span>Community Overview</span>
+                        <span>{t('nav.community_overview', 'Community Overview')}</span>
                     </Link>
                     <Link to="/admin/incidents" className="btn btn-outline-danger d-flex align-items-center gap-2">
                         <i className="bi bi-shield-exclamation"></i>
-                        <span>Incident Portal</span>
+                        <span>{t('nav.incident_management', 'Incident Portal')}</span>
                         {incidentCount > 0 && <span className="badge bg-danger rounded-pill">{incidentCount}</span>}
                     </Link>
                 </div>
@@ -124,7 +126,7 @@ const AdminDashboard = () => {
             <div className="row g-4 mb-4">
                 <div className="col-12 col-sm-6 col-xl-3">
                     <DashboardCard 
-                        title="Total Parcels" 
+                        title={t('common.all', 'Total Parcels')} 
                         value={stats.total_parcels} 
                         icon="bi-boxes" 
                         colorClass="text-primary" 
@@ -132,7 +134,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="col-12 col-sm-6 col-xl-3">
                     <DashboardCard 
-                        title="Pending Pickup" 
+                        title={t('status_labels.AWAITING_PICKUP', 'Pending Pickup')} 
                         value={stats.pending_parcels} 
                         icon="bi-clock-history" 
                         colorClass="text-warning" 
@@ -140,7 +142,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="col-12 col-sm-6 col-xl-3">
                     <DashboardCard 
-                        title="Handed Over Today" 
+                        title={t('status_labels.HANDED_OVER', 'Handed Over Today')} 
                         value={stats.handed_over_today} 
                         icon="bi-check-circle-fill" 
                         colorClass="text-success" 
@@ -148,7 +150,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="col-12 col-sm-6 col-xl-3">
                     <DashboardCard 
-                        title="Overdue" 
+                        title={t('notifications_page.overdue_title', 'Overdue')} 
                         value={stats.overdue_parcels} 
                         subtitle=">48 Hours"
                         icon="bi-exclamation-triangle-fill" 

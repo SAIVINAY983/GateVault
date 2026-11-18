@@ -3,9 +3,12 @@ import { AuthContext } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import GoogleLoginButton from '../components/auth/GoogleLoginButton';
 import ResidentGoogleOnboardingModal from '../components/auth/ResidentGoogleOnboardingModal';
+import { useTranslation } from '../i18n/i18n';
+import LanguageSelector from '../components/ui/LanguageSelector';
 
 const Login = () => {
     const { login, googleAuth } = useContext(AuthContext);
+    const { t } = useTranslation();
     const navigate = useNavigate();
     
     const [username, setUsername] = useState('');
@@ -100,19 +103,22 @@ const Login = () => {
             <div className="row g-0 h-100">
             {/* Left Column: Branding (hidden on mobile) */}
             <div className="col-lg-6 bg-primary text-white d-none d-lg-flex flex-column justify-content-center p-5 position-relative" style={{background: 'linear-gradient(135deg, var(--gv-primary) 0%, #1e293b 100%)'}}>
-                <div className="position-absolute top-0 start-0 p-5">
+                <div className="position-absolute top-0 start-0 p-5 d-flex justify-content-between align-items-center w-100">
                     <Link to="/" className="text-white text-decoration-none d-flex align-items-center gap-2">
                         <i className="bi bi-shield-check fs-2 text-info"></i>
                         <span className="fs-3 fw-bold tracking-tight">GateVault</span>
                     </Link>
+                    <div className="pe-5">
+                        <LanguageSelector variant="dark" size="sm" />
+                    </div>
                 </div>
                 
                 <div className="px-xl-5 z-1">
                     <h1 className="display-4 fw-bold mb-4 text-white" style={{letterSpacing: '-0.02em'}}>
-                        Secure every parcel from gatehouse to handover.
+                        {t('landing.hero_title', 'Secure every parcel from gatehouse to handover.')}
                     </h1>
                     <p className="fs-5 text-white-50 mb-5 pb-3 w-75">
-                        A complete digital chain of custody for modern residential communities. Seamless tracking, secure verification, and total peace of mind.
+                        {t('landing.hero_desc', 'A complete digital chain of custody for modern residential communities. Seamless tracking, secure verification, and total peace of mind.')}
                     </p>
                     
                     {/* Illustration / Decorative UI */}
@@ -122,7 +128,7 @@ const Login = () => {
                                 <i className="bi bi-check-circle-fill text-success fs-4"></i>
                             </div>
                             <div>
-                                <h6 className="mb-0 fw-bold">Verified Handover</h6>
+                                <h6 className="mb-0 fw-bold">{t('status_labels.HANDED_OVER', 'Verified Handover')}</h6>
                                 <small className="text-white-50">Parcel GV-2026-X89 delivered</small>
                             </div>
                         </div>
@@ -131,7 +137,7 @@ const Login = () => {
                                 <i className="bi bi-shield-lock-fill text-info fs-4"></i>
                             </div>
                             <div>
-                                <h6 className="mb-0 fw-bold">Secure Access</h6>
+                                <h6 className="mb-0 fw-bold">{t('landing.security', 'Secure Access')}</h6>
                                 <small className="text-white-50">Role-based data isolation</small>
                             </div>
                         </div>
@@ -145,19 +151,24 @@ const Login = () => {
             </div>
 
             {/* Right Column: Login Form */}
-            <div className="col-12 col-lg-6 d-flex flex-column justify-content-center bg-white p-4 p-md-5 overflow-auto">
+            <div className="col-12 col-lg-6 d-flex flex-column justify-content-center bg-white p-4 p-md-5 overflow-auto position-relative">
+                {/* Language Selector Top Right for Mobile / Form */}
+                <div className="position-absolute top-0 end-0 p-3 p-md-4">
+                    <LanguageSelector variant="light" size="sm" />
+                </div>
+
                 {/* Mobile Branding */}
-                <div className="d-lg-none text-center mb-4 mt-2">
+                <div className="d-lg-none text-center mb-4 mt-4">
                     <Link to="/" className="text-decoration-none d-flex align-items-center justify-content-center gap-2">
                         <i className="bi bi-shield-check fs-2 text-primary"></i>
                         <span className="fs-3 fw-bold text-dark tracking-tight">GateVault</span>
                     </Link>
                 </div>
 
-                <div className="mx-auto w-100" style={{maxWidth: '420px'}}>
+                <div className="mx-auto w-100 mt-3" style={{maxWidth: '420px'}}>
                     <div className="mb-4">
-                        <h2 className="fw-bold text-dark mb-1">Welcome back</h2>
-                        <p className="text-muted">Sign in to your GateVault account.</p>
+                        <h2 className="fw-bold text-dark mb-1">{t('auth.login_title', 'Welcome back')}</h2>
+                        <p className="text-muted">{t('auth.login_subtitle', 'Sign in to your GateVault account.')}</p>
                     </div>
 
                     {/* Google Notice (Pending / Rejected / Submitted) */}
@@ -180,12 +191,12 @@ const Login = () => {
                     {/* Resident Google OAuth Button */}
                     <div className="mb-4">
                         <div className="text-muted small fw-semibold mb-2">
-                            <i className="bi bi-person-heart text-primary me-1"></i> Residents Quick Sign-In
+                            <i className="bi bi-person-heart text-primary me-1"></i> {t('auth.residents_quick_signin', 'Residents Quick Sign-In')}
                         </div>
                         <GoogleLoginButton
                             onSuccess={handleGoogleSuccess}
                             onError={(err) => setError(err)}
-                            text="Continue with Google"
+                            text={t('auth.continue_with_google', 'Continue with Google')}
                             disabled={loading}
                         />
                     </div>
@@ -194,7 +205,7 @@ const Login = () => {
                     <div className="d-flex align-items-center my-4">
                         <hr className="flex-grow-1 my-0 text-muted" />
                         <span className="px-3 text-muted small fw-medium text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>
-                            Or sign in with username
+                            {t('auth.or_signin_username', 'Or sign in with username')}
                         </span>
                         <hr className="flex-grow-1 my-0 text-muted" />
                     </div>
@@ -202,7 +213,7 @@ const Login = () => {
                     {/* Standard Credentials Form */}
                     <form onSubmit={handleSubmit}>
                         <div className="mb-3">
-                            <label className="form-label small fw-semibold text-dark">Username</label>
+                            <label className="form-label small fw-semibold text-dark">{t('auth.username', 'Username')}</label>
                             <div className="input-group">
                                 <span className="input-group-text bg-light border-end-0">
                                     <i className="bi bi-person text-muted"></i>
@@ -213,13 +224,13 @@ const Login = () => {
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     required 
-                                    placeholder="Enter username"
+                                    placeholder={t('auth.enter_username', 'Enter username')}
                                 />
                             </div>
                         </div>
 
                         <div className="mb-4">
-                            <label className="form-label small fw-semibold text-dark">Password</label>
+                            <label className="form-label small fw-semibold text-dark">{t('auth.password', 'Password')}</label>
                             <div className="input-group">
                                 <span className="input-group-text bg-light border-end-0">
                                     <i className="bi bi-lock text-muted"></i>
@@ -230,7 +241,7 @@ const Login = () => {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required 
-                                    placeholder="Enter password"
+                                    placeholder={t('auth.enter_password', 'Enter password')}
                                 />
                                 <button 
                                     type="button" 
@@ -249,26 +260,26 @@ const Login = () => {
                             style={{background: 'var(--gv-primary)'}}
                         >
                             {loading ? (
-                                <><span className="spinner-border spinner-border-sm me-2"></span>Authenticating...</>
-                            ) : 'Sign In'}
+                                <><span className="spinner-border spinner-border-sm me-2"></span>{t('auth.signing_in', 'Authenticating...')}</>
+                            ) : t('auth.sign_in', 'Sign In')}
                         </button>
                     </form>
 
                     <div className="text-center text-muted mb-4 mt-2">
-                        Don't have an account? <Link to="/register" className="text-primary fw-semibold text-decoration-none ms-1">Create Resident Account</Link>
+                        {t('auth.no_account', "Don't have an account?")} <Link to="/register" className="text-primary fw-semibold text-decoration-none ms-1">{t('auth.create_resident_account', 'Create Resident Account')}</Link>
                     </div>
 
                     <div className="mt-4 p-3 bg-light rounded-4 text-center border">
-                        <span className="small fw-bold text-muted text-uppercase d-block mb-2" style={{letterSpacing: '0.05em', fontSize: '0.72rem'}}>Demo Quick-Fill</span>
+                        <span className="small fw-bold text-muted text-uppercase d-block mb-2" style={{letterSpacing: '0.05em', fontSize: '0.72rem'}}>{t('auth.demo_quick_fill', 'Demo Quick-Fill')}</span>
                         <div className="d-flex justify-content-center gap-2 flex-wrap">
                             <button type="button" className="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold" onClick={() => { setUsername('admin'); setPassword('adminpass'); }}>
-                                Admin
+                                {t('auth.admin', 'Admin')}
                             </button>
                             <button type="button" className="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold" onClick={() => { setUsername('guard1'); setPassword('guardpass'); }}>
-                                Guard
+                                {t('auth.guard', 'Guard')}
                             </button>
                             <button type="button" className="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold" onClick={() => { setUsername('resident1'); setPassword('respass'); }}>
-                                Resident
+                                {t('auth.resident', 'Resident')}
                             </button>
                         </div>
                     </div>

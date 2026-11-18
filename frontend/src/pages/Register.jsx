@@ -4,6 +4,8 @@ import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
 import GoogleLoginButton from '../components/auth/GoogleLoginButton';
 import ResidentGoogleOnboardingModal from '../components/auth/ResidentGoogleOnboardingModal';
+import { useTranslation } from '../i18n/i18n';
+import LanguageSelector from '../components/ui/LanguageSelector';
 
 // Raw axios instance for public unauthenticated endpoints
 const publicAxios = axios.create({
@@ -14,6 +16,7 @@ const publicAxios = axios.create({
 const Register = () => {
     const navigate = useNavigate();
     const { googleAuth } = useContext(AuthContext);
+    const { t } = useTranslation();
     
     const [formData, setFormData] = useState({
         first_name: '',
@@ -185,19 +188,22 @@ const Register = () => {
             <div className="row g-0 h-100">
             {/* Left Column: Branding (hidden on mobile) */}
             <div className="col-lg-6 bg-primary text-white d-none d-lg-flex flex-column justify-content-center p-5 position-relative" style={{background: 'linear-gradient(135deg, var(--gv-primary) 0%, #1e293b 100%)'}}>
-                <div className="position-absolute top-0 start-0 p-5">
+                <div className="position-absolute top-0 start-0 p-5 d-flex justify-content-between align-items-center w-100">
                     <Link to="/" className="text-white text-decoration-none d-flex align-items-center gap-2">
                         <i className="bi bi-shield-check fs-2 text-info"></i>
                         <span className="fs-3 fw-bold tracking-tight">GateVault</span>
                     </Link>
+                    <div className="pe-5">
+                        <LanguageSelector variant="dark" size="sm" />
+                    </div>
                 </div>
                 
                 <div className="px-xl-5 z-1">
                     <h1 className="display-4 fw-bold mb-4 text-white" style={{letterSpacing: '-0.02em'}}>
-                        Secure every parcel from gatehouse to handover.
+                        {t('landing.hero_title', 'Secure every parcel from gatehouse to handover.')}
                     </h1>
                     <p className="fs-5 text-white-50 mb-5 pb-3 w-75">
-                        A complete digital chain of custody for modern residential communities. Seamless tracking, secure verification, and total peace of mind.
+                        {t('landing.hero_desc', 'A complete digital chain of custody for modern residential communities. Seamless tracking, secure verification, and total peace of mind.')}
                     </p>
                     
                     {/* Illustration / Decorative UI */}
@@ -207,7 +213,7 @@ const Register = () => {
                                 <i className="bi bi-person-check-fill text-success fs-4"></i>
                             </div>
                             <div>
-                                <h6 className="mb-0 fw-bold">Resident Access</h6>
+                                <h6 className="mb-0 fw-bold">{t('auth.resident', 'Resident Access')}</h6>
                                 <small className="text-white-50">Generate secure pickup PINs instantly</small>
                             </div>
                         </div>
@@ -216,7 +222,7 @@ const Register = () => {
                                 <i className="bi bi-bell-fill text-info fs-4"></i>
                             </div>
                             <div>
-                                <h6 className="mb-0 fw-bold">Real-time Dashboard</h6>
+                                <h6 className="mb-0 fw-bold">{t('nav.my_dashboard', 'Real-time Dashboard')}</h6>
                                 <small className="text-white-50">Track incoming and pending parcels</small>
                             </div>
                         </div>
@@ -230,18 +236,23 @@ const Register = () => {
             </div>
 
             {/* Right Column: Register Form */}
-            <div className="col-12 col-lg-6 d-flex flex-column justify-content-center bg-white p-4 p-md-5 overflow-auto">
-                <div className="d-lg-none text-center mb-4 mt-2">
+            <div className="col-12 col-lg-6 d-flex flex-column justify-content-center bg-white p-4 p-md-5 overflow-auto position-relative">
+                {/* Language Selector Top Right */}
+                <div className="position-absolute top-0 end-0 p-3 p-md-4">
+                    <LanguageSelector variant="light" size="sm" />
+                </div>
+
+                <div className="d-lg-none text-center mb-4 mt-4">
                     <Link to="/" className="text-decoration-none d-flex align-items-center justify-content-center gap-2">
                         <i className="bi bi-shield-check fs-2 text-primary"></i>
                         <span className="fs-3 fw-bold text-dark tracking-tight">GateVault</span>
                     </Link>
                 </div>
 
-                <div className="mx-auto w-100 py-3" style={{maxWidth: '480px'}}>
+                <div className="mx-auto w-100 py-3 mt-2" style={{maxWidth: '480px'}}>
                     <div className="mb-4">
-                        <h2 className="fw-bold text-dark mb-1">Create resident account</h2>
-                        <p className="text-muted">Register to securely receive and verify parcels at your gatehouse.</p>
+                        <h2 className="fw-bold text-dark mb-1">{t('auth.register_title', 'Create resident account')}</h2>
+                        <p className="text-muted">{t('auth.register_subtitle', 'Register to securely receive and verify parcels at your gatehouse.')}</p>
                     </div>
 
                     {/* Google Notice */}
@@ -267,19 +278,19 @@ const Register = () => {
                                 <i className="bi bi-check-circle-fill"></i>
                                 <span className="small fw-medium">{success}</span>
                             </div>
-                            <Link to="/login" className="btn btn-sm btn-success fw-bold">Go to Login</Link>
+                            <Link to="/login" className="btn btn-sm btn-success fw-bold">{t('auth.sign_in', 'Go to Login')}</Link>
                         </div>
                     )}
 
                     {/* Google Fast Sign-up Option */}
                     <div className="mb-4">
                         <div className="text-muted small fw-semibold mb-2">
-                            <i className="bi bi-google text-danger me-1"></i> Fast Sign-Up with Verified Google Account
+                            <i className="bi bi-google text-danger me-1"></i> {t('auth.residents_quick_signin', 'Fast Sign-Up with Verified Google Account')}
                         </div>
                         <GoogleLoginButton
                             onSuccess={handleGoogleSuccess}
                             onError={(err) => setError(err)}
-                            text="Sign up with Google"
+                            text={t('auth.continue_with_google', 'Sign up with Google')}
                             disabled={loading}
                         />
                     </div>
@@ -288,7 +299,7 @@ const Register = () => {
                     <div className="d-flex align-items-center my-4">
                         <hr className="flex-grow-1 my-0 text-muted" />
                         <span className="px-3 text-muted small fw-medium text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>
-                            Or register manually
+                            {t('auth.or_signin_username', 'Or register manually')}
                         </span>
                         <hr className="flex-grow-1 my-0 text-muted" />
                     </div>
@@ -297,40 +308,40 @@ const Register = () => {
                     <form onSubmit={handleSubmit}>
                         <div className="row g-3 mb-3">
                             <div className="col-6">
-                                <label className="form-label small fw-semibold text-dark">First Name</label>
-                                <input type="text" className="form-control bg-light py-2" required value={formData.first_name} onChange={e => setFormData({...formData, first_name: e.target.value})} />
+                                <label className="form-label small fw-semibold text-dark">{t('auth.first_name', 'First Name')}</label>
+                                <input type="text" className="form-control bg-light py-2" required placeholder={t('auth.enter_first_name', 'Enter first name')} value={formData.first_name} onChange={e => setFormData({...formData, first_name: e.target.value})} />
                             </div>
                             <div className="col-6">
-                                <label className="form-label small fw-semibold text-dark">Last Name</label>
-                                <input type="text" className="form-control bg-light py-2" required value={formData.last_name} onChange={e => setFormData({...formData, last_name: e.target.value})} />
+                                <label className="form-label small fw-semibold text-dark">{t('auth.last_name', 'Last Name')}</label>
+                                <input type="text" className="form-control bg-light py-2" required placeholder={t('auth.enter_last_name', 'Enter last name')} value={formData.last_name} onChange={e => setFormData({...formData, last_name: e.target.value})} />
                             </div>
                         </div>
 
                         <div className="row g-3 mb-3">
                             <div className="col-12 col-md-6">
-                                <label className="form-label small fw-semibold text-dark">Username</label>
+                                <label className="form-label small fw-semibold text-dark">{t('auth.username', 'Username')}</label>
                                 <div className="input-group">
                                     <span className="input-group-text bg-light border-end-0"><i className="bi bi-person text-muted"></i></span>
-                                    <input type="text" className="form-control bg-light border-start-0 ps-0 py-2" required value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+                                    <input type="text" className="form-control bg-light border-start-0 ps-0 py-2" required placeholder={t('auth.enter_username', 'Enter username')} value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
                                 </div>
                             </div>
                             <div className="col-12 col-md-6">
-                                <label className="form-label small fw-semibold text-dark">Email</label>
+                                <label className="form-label small fw-semibold text-dark">{t('auth.email_address', 'Email')}</label>
                                 <div className="input-group">
                                     <span className="input-group-text bg-light border-end-0"><i className="bi bi-envelope text-muted"></i></span>
-                                    <input type="email" className="form-control bg-light border-start-0 ps-0 py-2" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                                    <input type="email" className="form-control bg-light border-start-0 ps-0 py-2" required placeholder={t('auth.enter_email', 'Enter email')} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                                 </div>
                             </div>
                         </div>
 
                         <div className="mb-3">
-                            <label className="form-label small fw-semibold text-dark">Phone Number (Optional)</label>
+                            <label className="form-label small fw-semibold text-dark">{t('auth.phone_number', 'Phone Number')} ({t('common.optional', 'Optional')})</label>
                             <div className="input-group">
                                 <span className="input-group-text bg-light border-end-0"><i className="bi bi-telephone text-muted"></i></span>
                                 <input 
                                     type="tel" 
                                     className="form-control bg-light border-start-0 ps-0 py-2" 
-                                    placeholder="e.g. +91 98765 43210" 
+                                    placeholder={t('auth.enter_phone', 'e.g. +91 98765 43210')} 
                                     value={formData.phone_number} 
                                     onChange={e => setFormData({...formData, phone_number: e.target.value})} 
                                 />
@@ -340,12 +351,12 @@ const Register = () => {
                         {/* Residential Address: Tower -> Floor -> Flat Number */}
                         <div className="p-3 bg-light rounded-3 mb-4 border">
                             <div className="fw-semibold small text-dark mb-2 d-flex align-items-center gap-2">
-                                <i className="bi bi-buildings text-primary"></i> Residential Address
+                                <i className="bi bi-buildings text-primary"></i> {t('common.tower', 'Residential Address')}
                             </div>
                             <div className="row g-2">
                                 <div className="col-12 col-md-4">
                                     <label className="form-label small fw-semibold text-dark mb-1">
-                                        1. Tower <span className="text-danger">*</span>
+                                        1. {t('common.tower', 'Tower')} <span className="text-danger">*</span>
                                     </label>
                                     <select 
                                         className="form-select bg-white py-2" 
@@ -358,13 +369,13 @@ const Register = () => {
                                             flat_id: ''
                                         })}
                                     >
-                                        <option value="">Select Tower...</option>
+                                        <option value="">{t('auth.select_tower', 'Select Tower...')}</option>
                                         {towers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                     </select>
                                 </div>
                                 <div className="col-12 col-md-4">
                                     <label className="form-label small fw-semibold text-dark mb-1">
-                                        2. Floor <span className="text-danger">*</span>
+                                        2. {t('common.floor', 'Floor')} <span className="text-danger">*</span>
                                     </label>
                                     <select 
                                         className="form-select bg-white py-2" 
@@ -378,7 +389,7 @@ const Register = () => {
                                         })}
                                     >
                                         <option value="">
-                                            {loadingFloors ? 'Loading floors...' : (!formData.tower ? 'Select Tower first' : 'Select Floor...')}
+                                            {loadingFloors ? t('common.loading', 'Loading floors...') : (!formData.tower ? t('auth.select_tower_first', 'Select Tower first') : t('auth.select_floor', 'Select Floor...'))}
                                         </option>
                                         {floors.map(fl => (
                                             <option key={fl.floor_number} value={fl.floor_number}>{fl.floor_name}</option>
@@ -387,7 +398,7 @@ const Register = () => {
                                 </div>
                                 <div className="col-12 col-md-4">
                                     <label className="form-label small fw-semibold text-dark mb-1">
-                                        3. Flat <span className="text-danger">*</span>
+                                        3. {t('common.flat', 'Flat')} <span className="text-danger">*</span>
                                     </label>
                                     <select 
                                         className="form-select bg-white py-2" 
@@ -397,40 +408,37 @@ const Register = () => {
                                         onChange={e => setFormData({...formData, flat_id: e.target.value})}
                                     >
                                         <option value="">
-                                            {loadingFlats ? 'Loading flats...' : (formData.floor === '' ? 'Select Floor first' : 'Select Flat...')}
+                                            {loadingFlats ? t('common.loading', 'Loading flats...') : (formData.floor === '' ? t('auth.select_floor_first', 'Select Floor first') : t('auth.select_flat', 'Select Flat...'))}
                                         </option>
                                         {flats.map(f => <option key={f.id} value={f.id}>Flat {f.number}</option>)}
                                     </select>
                                 </div>
                             </div>
-                            <small className="text-muted d-block mt-2" style={{ fontSize: '0.75rem' }}>
-                                GateVault assigns residents by Tower, Floor, and Flat Number.
-                            </small>
                         </div>
 
                         <div className="mb-4">
-                            <label className="form-label small fw-semibold text-dark">Password</label>
+                            <label className="form-label small fw-semibold text-dark">{t('auth.password', 'Password')}</label>
                             <div className="input-group mb-2">
                                 <span className="input-group-text bg-light border-end-0"><i className="bi bi-lock text-muted"></i></span>
-                                <input type={showPassword ? "text" : "password"} className="form-control bg-light border-start-0 border-end-0 ps-0 py-2" required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                                <input type={showPassword ? "text" : "password"} className="form-control bg-light border-start-0 border-end-0 ps-0 py-2" required placeholder={t('auth.enter_password', 'Enter password')} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
                                 <button type="button" className="btn btn-light bg-light border border-start-0 text-muted" onClick={() => setShowPassword(!showPassword)}>
                                     <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
                                 </button>
                             </div>
                             <div className="input-group">
                                 <span className="input-group-text bg-light border-end-0"><i className="bi bi-check2-circle text-muted"></i></span>
-                                <input type={showPassword ? "text" : "password"} className="form-control bg-light border-start-0 border-end-0 ps-0 py-2" required placeholder="Confirm password" value={formData.confirm_password} onChange={e => setFormData({...formData, confirm_password: e.target.value})} />
+                                <input type={showPassword ? "text" : "password"} className="form-control bg-light border-start-0 border-end-0 ps-0 py-2" required placeholder={t('auth.confirm_password_placeholder', 'Confirm password')} value={formData.confirm_password} onChange={e => setFormData({...formData, confirm_password: e.target.value})} />
                                 <span className="input-group-text bg-light border-start-0 bg-transparent"></span>
                             </div>
                         </div>
 
                         <button type="submit" className="btn btn-primary w-100 py-3 fw-bold rounded-3 mb-4 shadow-sm" disabled={loading} style={{background: 'var(--gv-primary)'}}>
-                            {loading ? <><span className="spinner-border spinner-border-sm me-2"></span>Creating Account...</> : 'Register Resident Account'}
+                            {loading ? <><span className="spinner-border spinner-border-sm me-2"></span>{t('auth.submitting', 'Submitting...')}</> : t('auth.register_button', 'Submit Registration')}
                         </button>
                     </form>
 
                     <div className="text-center text-muted mb-2">
-                        Already have an account? <Link to="/login" className="text-primary fw-semibold text-decoration-none ms-1">Sign in</Link>
+                        {t('auth.already_have_account', 'Already have an account?')} <Link to="/login" className="text-primary fw-semibold text-decoration-none ms-1">{t('auth.sign_in', 'Sign in')}</Link>
                     </div>
                 </div>
             </div>

@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from '../../i18n/i18n';
+import LanguageSelector from '../../components/ui/LanguageSelector';
 
 const LandingNavbar = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const { t } = useTranslation();
 
     const navLinks = [
-        { name: 'How It Works', href: '#how-it-works' },
-        { name: 'Features', href: '#features' },
-        { name: 'Security', href: '#security' },
-        { name: 'Benefits', href: '#benefits' },
+        { name: t('landing.how_it_works', 'How It Works'), href: '#how-it-works' },
+        { name: t('landing.features', 'Features'), href: '#features' },
+        { name: t('landing.security', 'Security'), href: '#security' },
+        { name: t('landing.benefits', 'Benefits'), href: '#benefits' },
     ];
 
     return (
@@ -34,7 +37,7 @@ const LandingNavbar = () => {
                 <div className={`collapse navbar-collapse ${isMenuOpen ? 'show bg-white position-absolute top-100 start-0 w-100 px-4 pb-4 border-bottom shadow-sm' : ''}`} style={{ zIndex: 1050 }}>
                     <ul className="navbar-nav mx-auto mb-2 mb-lg-0 gap-lg-4 text-center text-lg-start mt-3 mt-lg-0">
                         {navLinks.map(link => (
-                            <li className="nav-item" key={link.name}>
+                            <li className="nav-item" key={link.href}>
                                 <a className="nav-link fw-medium text-dark px-0" href={link.href} onClick={() => setIsMenuOpen(false)}>
                                     {link.name}
                                 </a>
@@ -42,13 +45,14 @@ const LandingNavbar = () => {
                         ))}
                     </ul>
                     
-                    {/* CTA */}
+                    {/* CTA & Language Selector */}
                     <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-3 mt-3 mt-lg-0">
-                        <Link to="/login" className="text-dark fw-medium text-decoration-none px-2">
-                            Log In
+                        <LanguageSelector variant="light" size="sm" />
+                        <Link to="/login" className="text-dark fw-medium text-decoration-none px-2 text-center">
+                            {t('landing.log_in', 'Log In')}
                         </Link>
-                        <Link to="/login" className="gv-btn-primary px-4 py-2">
-                            Access GateVault
+                        <Link to="/login" className="gv-btn-primary px-4 py-2 text-center text-decoration-none">
+                            {t('landing.access_gatevault', 'Access GateVault')}
                         </Link>
                     </div>
                 </div>

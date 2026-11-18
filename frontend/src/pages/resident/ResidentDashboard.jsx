@@ -5,6 +5,7 @@ import { ConditionBadge } from '../../components/ui/ParcelCard';
 import { LoadingSpinner, EmptyState, ErrorState } from '../../components/ui/StateComponents';
 import { resolveMediaUrl } from '../../utils/mediaUtils';
 import QRCodeDisplay from '../../components/ui/QRCodeDisplay';
+import { useTranslation } from '../../i18n/i18n';
 
 const INCIDENT_CATEGORIES = [
     { value: 'DAMAGED', label: 'Parcel damaged' },
@@ -35,6 +36,7 @@ const getIncidentStatusBadge = (status) => {
 };
 
 const ResidentDashboard = () => {
+    const { t } = useTranslation();
     const [parcels, setParcels] = useState([]);
     const [expectedDeliveries, setExpectedDeliveries] = useState([]);
     const [incidents, setIncidents] = useState([]);
@@ -474,16 +476,16 @@ const ResidentDashboard = () => {
         setShowHistoryModal(true);
     };
 
-    if (loading) return <LoadingSpinner message="Loading your dashboard..." />;
-    if (error) return <ErrorState message="Unable to load dashboard information." onRetry={fetchDashboardData} />;
+    if (loading) return <LoadingSpinner message={t('common.loading', 'Loading your dashboard...')} />;
+    if (error) return <ErrorState message={t('common.error', 'Unable to load dashboard information.')} onRetry={fetchDashboardData} />;
 
     const pendingParcels = parcels.filter(p => p.status === 'AWAITING_PICKUP' || p.is_overdue);
 
     return (
         <div className="container-fluid px-0">
             <div className="mb-4">
-                <h2 className="fw-bold text-dark mb-1">Good evening, Resident</h2>
-                <p className="text-muted">Your parcels and gatehouse activity at a glance.</p>
+                <h2 className="fw-bold text-dark mb-1">{t('resident.welcome_home', { name: 'Resident' })}</h2>
+                <p className="text-muted">{t('resident.portal_subtitle', 'Your parcels and gatehouse activity at a glance.')}</p>
             </div>
             
             {/* METRICS ROW */}
@@ -495,7 +497,7 @@ const ResidentDashboard = () => {
                         </div>
                         <div>
                             <h4 className="fw-bold mb-0">{pendingParcels.filter(p => !p.is_overdue).length}</h4>
-                            <span className="text-muted small text-uppercase">Pending</span>
+                            <span className="text-muted small text-uppercase">{t('status_labels.AWAITING_PICKUP', 'Pending')}</span>
                         </div>
                     </div>
                 </div>
@@ -506,7 +508,7 @@ const ResidentDashboard = () => {
                         </div>
                         <div>
                             <h4 className="fw-bold mb-0">{pendingParcels.filter(p => p.is_overdue).length}</h4>
-                            <span className="text-muted small text-uppercase">Overdue</span>
+                            <span className="text-muted small text-uppercase">{t('notifications_page.overdue_title', 'Overdue')}</span>
                         </div>
                     </div>
                 </div>
@@ -517,7 +519,7 @@ const ResidentDashboard = () => {
                         </div>
                         <div>
                             <h4 className="fw-bold mb-0">{parcels.filter(p => p.status === 'HANDED_OVER').length}</h4>
-                            <span className="text-muted small text-uppercase">Collected</span>
+                            <span className="text-muted small text-uppercase">{t('status_labels.HANDED_OVER', 'Collected')}</span>
                         </div>
                     </div>
                 </div>
@@ -528,7 +530,7 @@ const ResidentDashboard = () => {
                         </div>
                         <div>
                             <h4 className="fw-bold mb-0">{incidents.length}</h4>
-                            <span className="text-muted small text-uppercase">Reported Issues</span>
+                            <span className="text-muted small text-uppercase">{t('nav.incident_management', 'Reported Issues')}</span>
                         </div>
                     </div>
                 </div>
@@ -541,34 +543,34 @@ const ResidentDashboard = () => {
                         <i className="bi bi-star-half fs-2 text-warning"></i>
                         <div>
                             <h6 className="fw-bold text-dark mb-1">
-                                Rate Your Experience ({eligibleFeedbackParcels.length} collected {eligibleFeedbackParcels.length === 1 ? 'parcel' : 'parcels'} awaiting review)
+                                {t('nav.my_feedback', 'Rate Your Experience')} ({eligibleFeedbackParcels.length} {t('resident.total_collected_desc', 'collected parcels awaiting review')})
                             </h6>
                             <p className="mb-0 text-muted small">
-                                Help us maintain security standards and improve guard handover operations by leaving a quick star rating.
+                                {t('common.info', 'Help us maintain security standards and improve guard handover operations by leaving a quick star rating.')}
                             </p>
                         </div>
                     </div>
                     <Link to="/resident/feedback" className="btn btn-warning text-dark fw-bold btn-sm px-3 py-2 flex-shrink-0">
-                        <i className="bi bi-star-fill me-1"></i> Rate Experience Now
+                        <i className="bi bi-star-fill me-1"></i> {t('nav.my_feedback', 'Rate Experience Now')}
                     </Link>
                 </div>
             )}
 
             {/* PENDING PARCELS SECTION */}
             <div className="d-flex justify-content-between align-items-center mb-4 mt-5">
-                <h5 className="fw-bold mb-0">Your Pending Parcels</h5>
+                <h5 className="fw-bold mb-0">{t('resident.active_parcels', 'Your Pending Parcels')}</h5>
                 <Link to="/resident/send-delivery" className="gv-btn-primary d-flex align-items-center gap-2 text-decoration-none">
                     <i className="bi bi-calendar-plus"></i>
-                    <span className="d-none d-sm-inline">Send Delivery Details</span>
-                    <span className="d-sm-none">Pre-register</span>
+                    <span className="d-none d-sm-inline">{t('nav.send_delivery_details', 'Send Delivery Details')}</span>
+                    <span className="d-sm-none">{t('common.submit', 'Pre-register')}</span>
                 </Link>
             </div>
             
             {pendingParcels.length === 0 ? (
                 <EmptyState 
                     icon="bi-box2-heart" 
-                    title="You're all caught up." 
-                    message="No parcels are currently waiting for pickup at the gatehouse." 
+                    title={t('resident.no_parcels_title', "You're all caught up.")} 
+                    message={t('resident.no_parcels_desc', "No parcels are currently waiting for pickup at the gatehouse.")} 
                 />
             ) : (
                 <div className="row g-4">

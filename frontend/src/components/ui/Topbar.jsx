@@ -2,9 +2,12 @@ import React, { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import axiosInstance from '../../api/axiosInstance';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from '../../i18n/i18n';
+import LanguageSelector from './LanguageSelector';
 
 const Topbar = ({ onMenuClick }) => {
     const { user } = useContext(AuthContext);
+    const { t } = useTranslation();
     const navigate = useNavigate();
     
     const [unreadCount, setUnreadCount] = useState(0);
@@ -44,6 +47,12 @@ const Topbar = ({ onMenuClick }) => {
         navigate('/resident/notifications'); // or specific parcel if needed
     };
 
+    const getPortalTitle = () => {
+        if (user?.role === 'ADMIN') return t('nav.admin_portal', 'Community Administration');
+        if (user?.role === 'GUARD') return t('nav.guard_portal', 'Gatehouse Operations');
+        return t('nav.resident_portal', 'Resident Portal');
+    };
+
     return (
         <header className="bg-white border-bottom shadow-sm py-3 px-4 d-flex align-items-center justify-content-between position-sticky top-0" style={{ zIndex: 1030 }}>
             <div className="d-flex align-items-center">
@@ -52,13 +61,14 @@ const Topbar = ({ onMenuClick }) => {
                 </button>
                 
                 <h5 className="mb-0 fw-bold text-dark d-none d-md-block">
-                    {user?.role === 'ADMIN' ? 'Community Administration' : 
-                     user?.role === 'GUARD' ? 'Gatehouse Operations' : 
-                     'Resident Portal'}
+                    {getPortalTitle()}
                 </h5>
             </div>
 
             <div className="d-flex align-items-center gap-3">
+                {/* Language Selector Component */}
+                <LanguageSelector size="sm" variant="light" />
+
                 {user?.role === 'RESIDENT' && (
                     <div className="position-relative">
                         <button 
@@ -77,13 +87,13 @@ const Topbar = ({ onMenuClick }) => {
                         {showDropdown && (
                             <div className="dropdown-menu dropdown-menu-end show shadow position-absolute mt-2 border-0 rounded-3" style={{ width: '320px', right: 0 }}>
                                 <div className="p-3 border-bottom d-flex justify-content-between align-items-center bg-light rounded-top">
-                                    <h6 className="mb-0 fw-bold">Notifications</h6>
+                                    <h6 className="mb-0 fw-bold">{t('notifications_page.title', 'Notifications')}</h6>
                                 </div>
                                 <div className="overflow-auto" style={{ maxHeight: '300px' }}>
                                     {notifications.length === 0 ? (
                                         <div className="p-4 text-center text-muted small">
                                             <i className="bi bi-inbox fs-3 d-block mb-2"></i>
-                                            No recent notifications
+                                            {t('notifications_page.no_notifications', 'No recent notifications')}
                                         </div>
                                     ) : (
                                         notifications.map(n => (
@@ -115,7 +125,7 @@ const Topbar = ({ onMenuClick }) => {
                                 </div>
                                 <div className="p-2 border-top text-center bg-light rounded-bottom">
                                     <button className="btn btn-link btn-sm text-decoration-none fw-bold w-100" onClick={() => { setShowDropdown(false); navigate('/resident/notifications'); }}>
-                                        View All Notifications
+                                        {t('common.view_all', 'View All Notifications')}
                                     </button>
                                 </div>
                             </div>
@@ -124,7 +134,9 @@ const Topbar = ({ onMenuClick }) => {
                 )}
                 <div className="text-end d-none d-sm-block">
                     <div className="fw-bold text-dark lh-sm">{user?.name || user?.username}</div>
-                    <small className="text-muted text-uppercase lh-sm fw-medium" style={{ fontSize: '0.7rem' }}>{user?.role}</small>
+                    <small className="text-muted text-uppercase lh-sm fw-medium" style={{ fontSize: '0.7rem' }}>
+                        {user?.role === 'ADMIN' ? t('auth.admin', 'ADMIN') : user?.role === 'GUARD' ? t('auth.guard', 'GUARD') : t('auth.resident', 'RESIDENT')}
+                    </small>
                 </div>
                 <div className="bg-light text-primary rounded-circle d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}>
                     <i className="bi bi-person-fill fs-5"></i>

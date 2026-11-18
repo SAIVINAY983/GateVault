@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../api/axiosInstance';
 import { Link } from 'react-router-dom';
+import { useTranslation } from '../../i18n/i18n';
 
 const CourierVisits = () => {
+    const { t } = useTranslation();
     const [activeVisits, setActiveVisits] = useState([]);
     const [completedVisits, setCompletedVisits] = useState([]);
     const [carriers, setCarriers] = useState([]);

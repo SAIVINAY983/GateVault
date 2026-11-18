@@ -1,9 +1,11 @@
 import React, { useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
+import { useTranslation } from '../../i18n/i18n';
 
 const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     const { user, logout } = useContext(AuthContext);
+    const { t } = useTranslation();
     const location = useLocation();
     const navigate = useNavigate();
 
@@ -59,47 +61,51 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 </div>
                 
                 <div className="px-2 mb-4">
-                    <div className="small text-uppercase text-white-50 fw-bold mb-1" style={{ letterSpacing: '0.05em' }}>Logged in as</div>
+                    <div className="small text-uppercase text-white-50 fw-bold mb-1" style={{ letterSpacing: '0.05em' }}>
+                        {t('common.logged_in_as', 'Logged in as')}
+                    </div>
                     <div className="fw-semibold fs-6 text-truncate">{user?.name || user?.username}</div>
-                    <span className="badge bg-light text-primary mt-1">{user?.role}</span>
+                    <span className="badge bg-light text-primary mt-1">
+                        {user?.role === 'ADMIN' ? t('auth.admin', 'ADMIN') : user?.role === 'GUARD' ? t('auth.guard', 'GUARD') : t('auth.resident', 'RESIDENT')}
+                    </span>
                 </div>
 
                 <ul className="nav nav-pills flex-column mb-auto">
                     {user?.role === 'ADMIN' && (
                         <>
-                            <NavLink to="/admin" icon="bi-grid-1x2-fill" label="Dashboard" />
-                            <NavLink to="/admin/community" icon="bi-buildings-fill" label="Community Overview" />
-                            <NavLink to="/admin/alerts" icon="bi-exclamation-octagon-fill" label="Priority Alerts" />
-                            <NavLink to="/admin/feedback" icon="bi-star-half" label="Community Feedback" />
-                            <NavLink to="/admin/shelves" icon="bi-bookshelf" label="Smart Shelves" />
-                            <NavLink to="/admin/policies" icon="bi-sliders" label="Delivery Policies" />
-                            <NavLink to="/admin/shifts" icon="bi-person-badge-fill" label="Guard Shifts" />
-                            <NavLink to="/admin/incidents" icon="bi-shield-exclamation" label="Incident Management" />
-                            <NavLink to="/admin/history" icon="bi-clock-history" label="Parcel History" />
-                            <NavLink to="/admin/courier-visits" icon="bi-truck-flatbed" label="Courier Visits" />
-                            <NavLink to="/admin/reports" icon="bi-file-earmark-bar-graph" label="Reports & Backups" />
-                            <NavLink to="/admin/users" icon="bi-people-fill" label="User Management" />
+                            <NavLink to="/admin" icon="bi-grid-1x2-fill" label={t('nav.dashboard', 'Dashboard')} />
+                            <NavLink to="/admin/community" icon="bi-buildings-fill" label={t('nav.community_overview', 'Community Overview')} />
+                            <NavLink to="/admin/alerts" icon="bi-exclamation-octagon-fill" label={t('nav.priority_alerts', 'Priority Alerts')} />
+                            <NavLink to="/admin/feedback" icon="bi-star-half" label={t('nav.community_feedback', 'Community Feedback')} />
+                            <NavLink to="/admin/shelves" icon="bi-bookshelf" label={t('nav.smart_shelves', 'Smart Shelves')} />
+                            <NavLink to="/admin/policies" icon="bi-sliders" label={t('nav.delivery_policies', 'Delivery Policies')} />
+                            <NavLink to="/admin/shifts" icon="bi-person-badge-fill" label={t('nav.guard_shifts', 'Guard Shifts')} />
+                            <NavLink to="/admin/incidents" icon="bi-shield-exclamation" label={t('nav.incident_management', 'Incident Management')} />
+                            <NavLink to="/admin/history" icon="bi-clock-history" label={t('nav.parcel_history', 'Parcel History')} />
+                            <NavLink to="/admin/courier-visits" icon="bi-truck-flatbed" label={t('nav.courier_visits', 'Courier Visits')} />
+                            <NavLink to="/admin/reports" icon="bi-file-earmark-bar-graph" label={t('nav.reports_backups', 'Reports & Backups')} />
+                            <NavLink to="/admin/users" icon="bi-people-fill" label={t('nav.user_management', 'User Management')} />
                         </>
                     )}
                     
                     {user?.role === 'GUARD' && (
                         <>
-                            <NavLink to="/guard" icon="bi-list-ul" label="Dashboard" />
-                            <NavLink to="/guard/alerts" icon="bi-exclamation-octagon-fill" label="Priority Alerts" />
-                            <NavLink to="/guard/calendar" icon="bi-calendar3" label="Delivery Calendar" />
-                            <NavLink to="/guard/intake" icon="bi-box-seam-fill" label="Receive Parcel" primary />
-                            <NavLink to="/guard/verify" icon="bi-qr-code-scan" label="Verify Pickup" />
-                            <NavLink to="/guard/couriers" icon="bi-truck" label="Courier Log" />
+                            <NavLink to="/guard" icon="bi-list-ul" label={t('nav.dashboard', 'Dashboard')} />
+                            <NavLink to="/guard/alerts" icon="bi-exclamation-octagon-fill" label={t('nav.priority_alerts', 'Priority Alerts')} />
+                            <NavLink to="/guard/calendar" icon="bi-calendar3" label={t('nav.delivery_calendar', 'Delivery Calendar')} />
+                            <NavLink to="/guard/intake" icon="bi-box-seam-fill" label={t('nav.receive_parcel', 'Receive Parcel')} primary />
+                            <NavLink to="/guard/verify" icon="bi-qr-code-scan" label={t('nav.verify_pickup', 'Verify Pickup')} />
+                            <NavLink to="/guard/couriers" icon="bi-truck" label={t('nav.courier_log', 'Courier Log')} />
                         </>
                     )}
 
                     {user?.role === 'RESIDENT' && (
                         <>
-                            <NavLink to="/resident" icon="bi-grid-1x2-fill" label="My Dashboard" />
-                            <NavLink to="/resident/feedback" icon="bi-star-half" label="My Feedback" />
-                            <NavLink to="/resident/household" icon="bi-people-fill" label="My Household" />
-                            <NavLink to="/resident/send-delivery" icon="bi-calendar-plus" label="Send Delivery Details" />
-                            <NavLink to="/resident/history" icon="bi-clock-history" label="Delivery History" />
+                            <NavLink to="/resident" icon="bi-grid-1x2-fill" label={t('nav.my_dashboard', 'My Dashboard')} />
+                            <NavLink to="/resident/feedback" icon="bi-star-half" label={t('nav.my_feedback', 'My Feedback')} />
+                            <NavLink to="/resident/household" icon="bi-people-fill" label={t('nav.my_household', 'My Household')} />
+                            <NavLink to="/resident/send-delivery" icon="bi-calendar-plus" label={t('nav.send_delivery_details', 'Send Delivery Details')} />
+                            <NavLink to="/resident/history" icon="bi-clock-history" label={t('nav.delivery_history', 'Delivery History')} />
                         </>
                     )}
                 </ul>
@@ -108,7 +114,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 
                 <button onClick={handleLogout} className="btn btn-outline-light border-0 text-start d-flex align-items-center sidebar-link">
                     <i className="bi bi-box-arrow-right me-3 fs-5"></i>
-                    Logout
+                    {t('common.logout', 'Logout')}
                 </button>
             </div>
         </>

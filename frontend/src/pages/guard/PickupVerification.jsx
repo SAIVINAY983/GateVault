@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import axiosInstance from '../../api/axiosInstance';
 import { useNavigate, useLocation } from 'react-router-dom';
 import QRScannerComponent from '../../components/guard/QRScannerComponent';
+import { useTranslation } from '../../i18n/i18n';
 
 const PickupVerification = () => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
 

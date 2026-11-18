@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../api/axiosInstance';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from '../../i18n/i18n';
 
 const Notifications = () => {
+    const { t, i18n } = useTranslation();
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
@@ -40,6 +42,25 @@ const Notifications = () => {
         }
     };
 
+    const getLocalizedNotification = (n) => {
+        let title = n.title;
+        let message = n.message;
+        if (n.notification_type === 'NEW_PARCEL' || n.title?.toLowerCase().includes('received') || n.title?.toLowerCase().includes('arrived')) {
+            title = t('notifications_page.parcel_received_title', n.title);
+            if (n.message?.toLowerCase().includes('vault') || n.message?.toLowerCase().includes('gatehouse')) {
+                message = t('resident.parcel_ready_msg', n.message);
+            }
+        } else if (n.notification_type === 'HANDOVER' || n.title?.toLowerCase().includes('collected') || n.title?.toLowerCase().includes('handover')) {
+            title = t('notifications_page.handover_title', n.title);
+            message = t('guard.handover_success_msg', n.message);
+        } else if (n.notification_type === 'OVERDUE' || n.title?.toLowerCase().includes('overdue')) {
+            title = t('notifications_page.overdue_title', n.title);
+        } else if (n.notification_type === 'EMERGENCY') {
+            title = t('notifications_page.emergency_title', n.title);
+        }
+        return { title, message };
+    };
+
     const getIcon = (type) => {
         switch (type) {
             case 'NEW_PARCEL': return <i className="bi bi-box-seam text-primary fs-3"></i>;
@@ -56,7 +77,7 @@ const Notifications = () => {
         return (
             <div className="d-flex justify-content-center align-items-center vh-100">
                 <div className="spinner-border text-primary" role="status">
-                    <span className="visually-hidden">Loading...</span>
+                    <span className="visually-hidden">{t('common.loading', 'Loading...')}</span>
                 </div>
             </div>
         );
@@ -66,12 +87,12 @@ const Notifications = () => {
         <div className="container-fluid px-0">
             <div className="d-flex justify-content-between align-items-end mb-4">
                 <div>
-                    <h2 className="fw-bold text-dark mb-1">Notifications</h2>
-                    <p className="text-muted mb-0">Stay updated on your deliveries and parcels.</p>
+                    <h2 className="fw-bold text-dark mb-1">{t('notifications_page.title', 'Notifications')}</h2>
+                    <p className="text-muted mb-0">{t('notifications_page.subtitle', 'Stay updated on your deliveries and parcels.')}</p>
                 </div>
                 {notifications.some(n => !n.is_read) && (
                     <button onClick={handleMarkAllRead} className="btn btn-sm btn-outline-primary fw-medium">
-                        <i className="bi bi-check2-all me-1"></i> Mark all as read
+                        <i className="bi bi-check2-all me-1"></i> {t('notifications_page.mark_all_read', 'Mark all as read')}
                     </button>
                 )}
             </div>
@@ -82,47 +103,50 @@ const Notifications = () => {
                         <div className="display-1 text-muted mb-3 opacity-25">
                             <i className="bi bi-bell-slash"></i>
                         </div>
-                        <h4 className="fw-bold text-dark">You're all caught up.</h4>
-                        <p className="text-muted">You have no notifications at the moment.</p>
+                        <h4 className="fw-bold text-dark">{t('resident.no_parcels_title', "You're all caught up.")}</h4>
+                        <p className="text-muted">{t('notifications_page.no_notifications', 'You have no notifications at the moment.')}</p>
                         <button onClick={() => navigate('/resident')} className="gv-btn-primary mt-3 px-4">
-                            Go to Dashboard
+                            {t('nav.dashboard', 'Go to Dashboard')}
                         </button>
                     </div>
                 ) : (
                     <div className="list-group list-group-flush">
-                        {notifications.map(n => (
-                            <div key={n.id} className={`list-group-item p-4 border-bottom ${!n.is_read ? 'bg-light' : 'bg-white'}`}>
-                                <div className="d-flex gap-4 align-items-start">
-                                    <div className="mt-1">
-                                        {getIcon(n.notification_type)}
+                        {notifications.map(n => {
+                            const localized = getLocalizedNotification(n);
+                            return (
+                                <div key={n.id} className={`list-group-item p-4 border-bottom ${!n.is_read ? 'bg-light' : 'bg-white'}`}>
+                                    <div className="d-flex gap-4 align-items-start">
+                                        <div className="mt-1">
+                                            {getIcon(n.notification_type)}
+                                        </div>
+                                        <div className="flex-grow-1">
+                                            <div className="d-flex justify-content-between align-items-center mb-1">
+                                                <h6 className={`mb-0 fw-bold ${!n.is_read ? 'text-dark' : 'text-muted'}`}>{localized.title}</h6>
+                                                <small className="text-muted fw-medium">{i18n.formatDate(n.created_at)} {i18n.formatTime(n.created_at)}</small>
+                                            </div>
+                                            <p className="mb-2 text-dark">{localized.message}</p>
+                                            <div className="d-flex align-items-center gap-3">
+                                                {n.parcel_id && (
+                                                    <span className="badge bg-secondary rounded-pill py-1 px-3">
+                                                        {t('resident.parcel_id', 'ID')}: {n.parcel_id}
+                                                    </span>
+                                                )}
+                                                {!n.is_read && (
+                                                    <button onClick={() => handleMarkAsRead(n.id)} className="btn btn-sm btn-link text-decoration-none p-0 fw-medium">
+                                                        {t('common.confirm', 'Mark as read')}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {!n.is_read && (
+                                            <div className="ms-3 mt-2">
+                                                <span className="p-1.5 bg-primary rounded-circle d-inline-block" style={{ width: '10px', height: '10px' }}></span>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="flex-grow-1">
-                                        <div className="d-flex justify-content-between align-items-center mb-1">
-                                            <h6 className={`mb-0 fw-bold ${!n.is_read ? 'text-dark' : 'text-muted'}`}>{n.title}</h6>
-                                            <small className="text-muted fw-medium">{new Date(n.created_at).toLocaleString()}</small>
-                                        </div>
-                                        <p className="mb-2 text-dark">{n.message}</p>
-                                        <div className="d-flex align-items-center gap-3">
-                                            {n.parcel_id && (
-                                                <span className="badge bg-secondary rounded-pill py-1 px-3">
-                                                    ID: {n.parcel_id}
-                                                </span>
-                                            )}
-                                            {!n.is_read && (
-                                                <button onClick={() => handleMarkAsRead(n.id)} className="btn btn-sm btn-link text-decoration-none p-0 fw-medium">
-                                                    Mark as read
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                    {!n.is_read && (
-                                        <div className="ms-3 mt-2">
-                                            <span className="p-1.5 bg-primary rounded-circle d-inline-block" style={{ width: '10px', height: '10px' }}></span>
-                                        </div>
-                                    )}
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

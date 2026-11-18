@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axiosInstance from '../../api/axiosInstance';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from '../../i18n/i18n';
 
 const ParcelIntake = () => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [towers, setTowers] = useState([]);

@@ -1,6 +1,8 @@
 import React from 'react';
+import { useTranslation } from '../../i18n/i18n';
 
 const PickupPass = ({ parcel, onClose }) => {
+    const { t, i18n } = useTranslation();
     if (!parcel) return null;
 
     return (
@@ -20,15 +22,15 @@ const PickupPass = ({ parcel, onClose }) => {
                         <i className="bi bi-shield-check fs-5"></i>
                         <span className="fw-semibold text-uppercase tracking-wide" style={{ letterSpacing: '0.1em', fontSize: '0.75rem' }}>GateVault</span>
                     </div>
-                    <h3 className="fw-bold mb-0">Pickup Pass</h3>
+                    <h3 className="fw-bold mb-0">{t('resident.qr_pickup_pass', 'Pickup Pass')}</h3>
                 </div>
 
                 <div className="p-4 text-center">
-                    <h5 className="fw-bold text-dark mb-1">{parcel.carrier_name} Delivery</h5>
-                    <div className="text-muted small mb-4">Parcel ID: {parcel.parcel_id}</div>
+                    <h5 className="fw-bold text-dark mb-1">{parcel.carrier_name}</h5>
+                    <div className="text-muted small mb-4">{t('resident.parcel_id', 'Parcel ID')}: {parcel.parcel_id}</div>
 
                     <div className="bg-light border rounded-4 p-4 mb-4">
-                        <div className="text-uppercase text-muted fw-bold mb-2" style={{ fontSize: '0.75rem', letterSpacing: '0.1em' }}>Secure PIN</div>
+                        <div className="text-uppercase text-muted fw-bold mb-2" style={{ fontSize: '0.75rem', letterSpacing: '0.1em' }}>{t('resident.pickup_pin', 'Secure PIN')}</div>
                         <div className="display-3 fw-bold text-dark pin-display lh-1 mb-0">
                             {parcel.pickup_pin}
                         </div>
@@ -36,20 +38,20 @@ const PickupPass = ({ parcel, onClose }) => {
 
                     <div className="row g-2 text-start bg-main rounded-3 p-3 mb-4 mx-0">
                         <div className="col-6 border-end">
-                            <small className="text-muted d-block text-uppercase mb-1" style={{ fontSize: '0.65rem' }}>Destination</small>
-                            <div className="fw-bold text-dark">Flat {parcel.flat_details?.number}</div>
-                            <div className="small text-muted">{parcel.flat_details?.tower_name} Tower</div>
+                            <small className="text-muted d-block text-uppercase mb-1" style={{ fontSize: '0.65rem' }}>{t('common.flat', 'Destination')}</small>
+                            <div className="fw-bold text-dark">{t('common.flat', 'Flat')} {parcel.flat_details?.number}</div>
+                            <div className="small text-muted">{parcel.flat_details?.tower_name}</div>
                         </div>
                         <div className="col-6 ps-3">
-                            <small className="text-muted d-block text-uppercase mb-1" style={{ fontSize: '0.65rem' }}>Arrived</small>
-                            <div className="fw-bold text-dark">{new Date(parcel.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                            <div className="small text-muted">{new Date(parcel.received_at).toLocaleDateString()}</div>
+                            <small className="text-muted d-block text-uppercase mb-1" style={{ fontSize: '0.65rem' }}>{t('resident.arrived_at', 'Arrived')}</small>
+                            <div className="fw-bold text-dark">{i18n.formatTime(parcel.received_at)}</div>
+                            <div className="small text-muted">{i18n.formatDate(parcel.received_at)}</div>
                         </div>
                     </div>
 
                     <div className="d-flex align-items-center justify-content-center text-muted small">
                         <i className="bi bi-info-circle me-2"></i>
-                        Show this pass to the gatehouse guard.
+                        {t('resident.parcel_ready_msg', 'Show this pass to the gatehouse guard.')}
                     </div>
                 </div>
             </div>

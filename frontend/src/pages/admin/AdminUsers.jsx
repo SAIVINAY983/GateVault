@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../api/axiosInstance';
 import { LoadingSpinner, EmptyState, ErrorState } from '../../components/ui/StateComponents';
+import { useTranslation } from '../../i18n/i18n';
 
 const AdminUsers = () => {
+    const { t } = useTranslation();
     const [users, setUsers] = useState([]);
     const [approvals, setApprovals] = useState([]);
     const [loading, setLoading] = useState(true);

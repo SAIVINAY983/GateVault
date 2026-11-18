@@ -57,3 +57,10 @@ backend/backups/*.sqlite3
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Docker Desktop WSL local disk
+DockerDesktopWSL/
+
+# Scratch & test scripts
+scratch/
+
