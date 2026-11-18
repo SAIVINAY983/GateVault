@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
-    CustomTokenObtainPairView, PublicResidentRegisterView, TowerViewSet, FlatViewSet, CarrierViewSet, StorageShelfViewSet,
+    CustomTokenObtainPairView, PublicResidentRegisterView, LogoutView, TowerViewSet, FlatViewSet, CarrierViewSet, StorageShelfViewSet,
     ParcelIntakeView, GuardPendingParcelsView, VerifyPickupView, ConfirmHandoverView,
     ResidentParcelsView, AdminDashboardStatsView, OverdueParcelsView, AdminParcelHistoryView,
     AdminUserManagementViewSet, NotificationListView, UnreadNotificationCountView,
@@ -48,6 +48,7 @@ router.register(r'expected-deliveries', ExpectedDeliveryViewSet, basename='expec
 urlpatterns = [
     # Auth URLs
     path('auth/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('auth/logout/', LogoutView.as_view(), name='auth-logout'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/register/', PublicResidentRegisterView.as_view(), name='register_resident'),
     path('auth/google/', GoogleOAuthLoginView.as_view(), name='google-oauth-login'),

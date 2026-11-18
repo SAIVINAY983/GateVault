@@ -47,11 +47,31 @@ from .reports import (
     execute_sqlite_backup, REPORT_CATEGORIES
 )
 from .permissions import IsAdminUser, IsGuardUser, IsResidentUser, IsAdminOrGuard, IsPrimaryResident
+from .security import (
+    get_client_ip, log_security_event, get_lockout_status,
+    record_failed_login, record_successful_login, blacklist_token,
+    LoginRateThrottle, RegisterRateThrottle
+)
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         username = attrs.get(self.username_field)
         password = attrs.get('password')
+        request = self.context.get('request')
+        ip_address = get_client_ip(request)
+
+        # 1. Enforce account/IP temporary lockout policy
+        is_locked, remaining_seconds = get_lockout_status(username, ip_address)
+        if is_locked:
+            minutes = max(1, (remaining_seconds + 59) // 60)
+            log_security_event('AUTH_LOCKOUT_BLOCKED', {
+                'username': username or 'unknown',
+                'ip': ip_address,
+                'remaining_seconds': remaining_seconds
+            })
+            raise exceptions.Throttled(
+                detail=f"Too many failed login attempts. Account temporarily locked for security. Please try again in {minutes} minute(s)."
+            )
 
         demo_passwords = {
             'admin': ['adminpass', 'admin123', 'admin'],
@@ -87,7 +107,35 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                     flat, _ = Flat.objects.get_or_create(tower=tower, number='101')
                 ResidentProfile.objects.get_or_create(user=user, defaults={'flat': flat})
 
-        data = super().validate(attrs)
+        # 3. Check if account is deactivated
+        existing_user = User.objects.filter(username=username).first()
+        if existing_user and not existing_user.is_active:
+            log_security_event('AUTH_LOGIN_DEACTIVATED', {
+                'username': username,
+                'ip': ip_address
+            })
+            raise exceptions.AuthenticationFailed("This account has been deactivated. Please contact your Community Admin.")
+
+        # 4. Authenticate credentials with generic error response and failure counting
+        try:
+            data = super().validate(attrs)
+        except Exception:
+            record_failed_login(username, ip_address)
+            log_security_event('AUTH_LOGIN_FAILURE', {
+                'username': username or 'unknown',
+                'ip': ip_address,
+                'reason': 'Invalid credentials'
+            })
+            raise exceptions.AuthenticationFailed("Invalid credentials. Please check your username and password.")
+
+        # 5. Successful login: clear lockout counters and audit log
+        record_successful_login(username, ip_address)
+        log_security_event('AUTH_LOGIN_SUCCESS', {
+            'username': self.user.username,
+            'role': self.user.role,
+            'ip': ip_address
+        })
+
         is_primary = True
         approval_status = 'APPROVED'
         tower_name = None
@@ -124,15 +172,23 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+    throttle_classes = [LoginRateThrottle]
 
 class PublicResidentRegisterView(generics.CreateAPIView):
     serializer_class = CreateResidentSerializer
-    permission_classes = [] # AllowAny
+    permission_classes = [AllowAny]
+    throttle_classes = [RegisterRateThrottle]
     
     def create(self, request, *args, **kwargs):
+        ip_address = get_client_ip(request)
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
+            log_security_event('AUTH_REGISTER_SUCCESS', {
+                'username': user.username,
+                'email_domain': user.email.split('@')[-1] if '@' in user.email else 'unknown',
+                'ip': ip_address
+            })
             return Response(
                 {
                     "message": "Resident registration submitted successfully. Your account is pending Community Admin approval.",
@@ -141,7 +197,37 @@ class PublicResidentRegisterView(generics.CreateAPIView):
                 },
                 status=status.HTTP_201_CREATED
             )
+        log_security_event('AUTH_REGISTER_VALIDATION_FAILED', {
+            'ip': ip_address,
+            'errors': list(serializer.errors.keys())
+        })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class LogoutView(views.APIView):
+    """
+    Secure logout endpoint.
+    Revokes and blacklists the refresh token, invalidates active sessions,
+    and logs the security event.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.data.get('refresh') or request.data.get('refresh_token')
+        ip_address = get_client_ip(request)
+        username = request.user.username if request.user and request.user.is_authenticated else 'anonymous'
+
+        if refresh_token:
+            blacklist_token(refresh_token)
+
+        log_security_event('AUTH_LOGOUT', {
+            'username': username,
+            'ip': ip_address
+        })
+
+        return Response(
+            {"message": "Logged out successfully. Session tokens invalidated."},
+            status=status.HTTP_200_OK
+        )
 
 class TowerViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Tower.objects.all()

@@ -1,6 +1,8 @@
+import re
 from rest_framework import serializers
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
+from .security import validate_password_complexity
 from .models import (
     User, Tower, Flat, ResidentProfile, GuardProfile, Carrier, StorageShelf, Parcel, PickupVerification, Notification, ExpectedDelivery,
     ParcelInspection, ParcelIncident, IncidentHistory, HouseholdMember, HouseholdAuditLog, ParcelQRPickupPass,
@@ -319,15 +321,57 @@ class CreateResidentSerializer(serializers.ModelSerializer):
     floor = serializers.IntegerField(write_only=True, required=False)
     flat_id = serializers.IntegerField(write_only=True)
     phone_number = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, required=True)
+    confirm_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     first_name = serializers.CharField(required=True)
     last_name = serializers.CharField(required=True)
+    email = serializers.EmailField(required=True)
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'first_name', 'last_name', 'flat_id', 'tower_id', 'floor', 'phone_number']
+        fields = [
+            'username', 'email', 'password', 'confirm_password',
+            'first_name', 'last_name', 'flat_id', 'tower_id', 'floor', 'phone_number'
+        ]
+
+    def validate_username(self, value):
+        cleaned = value.strip()
+        if len(cleaned) < 3:
+            raise serializers.ValidationError("Username must be at least 3 characters long.")
+        if not re.match(r'^[\w.@+-]+$', cleaned):
+            raise serializers.ValidationError("Username contains invalid characters. Use letters, numbers, and @/./+/-/_ only.")
+        if User.objects.filter(username__iexact=cleaned).exists():
+            raise serializers.ValidationError("This username is already taken. Please choose another.")
+        return cleaned
+
+    def validate_email(self, value):
+        cleaned = value.strip().lower()
+        if not cleaned:
+            raise serializers.ValidationError("Email address is required.")
+        if User.objects.filter(email__iexact=cleaned).exists():
+            raise serializers.ValidationError("An account with this email address already exists. Please sign in or use another email.")
+        return cleaned
+
+    def validate_phone_number(self, value):
+        if not value:
+            return ''
+        cleaned = re.sub(r'[\s\-\(\)]', '', value.strip())
+        if not re.match(r'^\+?[0-9]{10,15}$', cleaned):
+            raise serializers.ValidationError("Phone number must contain between 10 and 15 digits (e.g. +919876543210).")
+        if ResidentProfile.objects.filter(phone_number=cleaned).exists():
+            raise serializers.ValidationError("An account with this phone number already exists.")
+        return cleaned
 
     def validate(self, attrs):
+        password = attrs.get('password')
+        confirm_password = attrs.get('confirm_password')
+
+        if confirm_password and password != confirm_password:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+
+        # Enforce strong password complexity policy (12+ chars, upper, lower, digit, special symbol)
+        validate_password_complexity(password)
+
         flat_id = attrs.get('flat_id')
         tower_id = attrs.get('tower_id')
         floor = attrs.get('floor')
@@ -356,10 +400,15 @@ class CreateResidentSerializer(serializers.ModelSerializer):
         tower_id = validated_data.pop('tower_id', None)
         floor = validated_data.pop('floor', None)
         phone_number = validated_data.pop('phone_number', '') or ''
+        validated_data.pop('confirm_password', None)
+        # Prevent privilege escalation: ignore any role or permission flags in payload
+        validated_data.pop('role', None)
+        validated_data.pop('is_staff', None)
+        validated_data.pop('is_superuser', None)
             
         user = User.objects.create_user(
             username=validated_data['username'],
-            email=validated_data.get('email', ''),
+            email=validated_data['email'],
             password=validated_data['password'],
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name'],

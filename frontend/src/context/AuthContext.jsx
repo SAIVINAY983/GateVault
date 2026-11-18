@@ -209,11 +209,20 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const logout = () => {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
-        setUser(null);
+    const logout = async () => {
+        const refreshToken = localStorage.getItem('refresh_token');
+        try {
+            if (refreshToken) {
+                await axiosInstance.post('auth/logout/', { refresh: refreshToken });
+            }
+        } catch (e) {
+            // Ignore error during cleanup so client state is always reliably cleared
+        } finally {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+            setUser(null);
+        }
     };
 
     return (

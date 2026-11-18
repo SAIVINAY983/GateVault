@@ -14,6 +14,7 @@ const Login = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -91,18 +92,39 @@ const Login = () => {
     };
 
     return (
-        <div className="container-fluid vh-100 p-0 overflow-hidden">
+        <div className="container-fluid p-0" style={{ minHeight: '100vh', overflowX: 'hidden' }}>
             <style>
                 {`
                 .form-control:focus, .form-select:focus {
                     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5) !important;
                     border-color: #3b82f6 !important;
                 }
+                .login-scroll-col {
+                    min-height: 100vh;
+                    overflow-y: auto;
+                    -webkit-overflow-scrolling: touch;
+                }
+                @media (min-width: 992px) {
+                    .login-wrapper {
+                        height: 100vh;
+                        overflow: hidden;
+                    }
+                    .login-left-banner {
+                        height: 100vh;
+                        position: sticky;
+                        top: 0;
+                    }
+                    .login-scroll-col {
+                        height: 100vh;
+                        max-height: 100vh;
+                        overflow-y: auto;
+                    }
+                }
                 `}
             </style>
-            <div className="row g-0 h-100">
+            <div className="row g-0 login-wrapper">
             {/* Left Column: Branding (hidden on mobile) */}
-            <div className="col-lg-6 bg-primary text-white d-none d-lg-flex flex-column justify-content-center p-5 position-relative" style={{background: 'linear-gradient(135deg, var(--gv-primary) 0%, #1e293b 100%)'}}>
+            <div className="col-lg-6 bg-primary text-white d-none d-lg-flex flex-column justify-content-center p-5 position-relative login-left-banner" style={{background: 'linear-gradient(135deg, var(--gv-primary) 0%, #1e293b 100%)'}}>
                 <div className="position-absolute top-0 start-0 p-5 d-flex justify-content-between align-items-center w-100">
                     <Link to="/" className="text-white text-decoration-none d-flex align-items-center gap-2">
                         <i className="bi bi-shield-check fs-2 text-info"></i>
@@ -151,9 +173,9 @@ const Login = () => {
             </div>
 
             {/* Right Column: Login Form */}
-            <div className="col-12 col-lg-6 d-flex flex-column justify-content-center bg-white p-4 p-md-5 overflow-auto position-relative">
+            <div className="col-12 col-lg-6 d-flex flex-column bg-white p-4 p-md-5 login-scroll-col position-relative">
                 {/* Language Selector Top Right for Mobile / Form */}
-                <div className="position-absolute top-0 end-0 p-3 p-md-4">
+                <div className="position-absolute top-0 end-0 p-3 p-md-4" style={{ zIndex: 10 }}>
                     <LanguageSelector variant="light" size="sm" />
                 </div>
 
@@ -165,7 +187,7 @@ const Login = () => {
                     </Link>
                 </div>
 
-                <div className="mx-auto w-100 mt-3" style={{maxWidth: '420px'}}>
+                <div className="mx-auto w-100 my-auto py-4" style={{maxWidth: '420px'}}>
                     <div className="mb-4">
                         <h2 className="fw-bold text-dark mb-1">{t('auth.login_title', 'Welcome back')}</h2>
                         <p className="text-muted">{t('auth.login_subtitle', 'Sign in to your GateVault account.')}</p>
@@ -182,8 +204,8 @@ const Login = () => {
                     )}
 
                     {error && (
-                        <div className="alert alert-danger d-flex align-items-center gap-2 border-0 bg-danger bg-opacity-10 text-danger mb-4 rounded-3 p-3">
-                            <i className="bi bi-exclamation-triangle-fill"></i>
+                        <div className={`alert ${error.toLowerCase().includes('locked') ? 'alert-warning border border-warning shadow-sm' : 'alert-danger border-0 bg-danger bg-opacity-10 text-danger'} d-flex align-items-center gap-2 mb-4 rounded-3 p-3`}>
+                            <i className={`bi ${error.toLowerCase().includes('locked') ? 'bi-shield-lock-fill fs-5 text-warning' : 'bi-exclamation-triangle-fill'}`}></i>
                             <span className="small fw-medium">{error}</span>
                         </div>
                     )}
@@ -230,7 +252,17 @@ const Login = () => {
                         </div>
 
                         <div className="mb-4">
-                            <label className="form-label small fw-semibold text-dark">{t('auth.password', 'Password')}</label>
+                            <div className="d-flex justify-content-between align-items-center mb-1">
+                                <label className="form-label small fw-semibold text-dark mb-0">{t('auth.password', 'Password')}</label>
+                                <button 
+                                    type="button" 
+                                    className="btn btn-link p-0 text-decoration-none small text-primary fw-medium"
+                                    style={{ fontSize: '0.8rem' }}
+                                    onClick={() => setShowForgotPassword(true)}
+                                >
+                                    {t('auth.forgot_password', 'Forgot password?')}
+                                </button>
+                            </div>
                             <div className="input-group">
                                 <span className="input-group-text bg-light border-end-0">
                                     <i className="bi bi-lock text-muted"></i>
@@ -247,6 +279,7 @@ const Login = () => {
                                     type="button" 
                                     className="btn btn-light bg-light border border-start-0 text-muted" 
                                     onClick={() => setShowPassword(!showPassword)}
+                                    aria-label="Toggle password visibility"
                                 >
                                     <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
                                 </button>
@@ -295,6 +328,46 @@ const Login = () => {
                 onClose={() => setShowOnboarding(false)}
                 onComplete={handleOnboardingComplete}
             />
+
+            {/* Forgot Password Assistance Modal */}
+            {showForgotPassword && (
+                <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.55)', zIndex: 1060 }}>
+                    <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: '440px' }}>
+                        <div className="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+                            <div className="modal-header border-bottom bg-light py-3 px-4">
+                                <h6 className="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0">
+                                    <i className="bi bi-shield-lock-fill text-primary"></i>
+                                    {t('auth.forgot_password_title', 'Reset Password Assistance')}
+                                </h6>
+                                <button type="button" className="btn-close" aria-label="Close" onClick={() => setShowForgotPassword(false)}></button>
+                            </div>
+                            <div className="modal-body p-4">
+                                <div className="alert alert-primary bg-primary bg-opacity-10 text-primary border-0 rounded-3 mb-3 p-3">
+                                    <p className="small mb-0">
+                                        {t('auth.forgot_password_desc', 'For community safety and verified residence records, password resets are handled through the Community Admin office or Gatehouse Security Desk with flat number verification.')}
+                                    </p>
+                                </div>
+                                <div className="bg-light p-3 rounded-3 border">
+                                    <div className="small fw-bold text-dark text-uppercase mb-2" style={{ letterSpacing: '0.04em', fontSize: '0.7rem' }}>
+                                        Society Administration & Security Desk:
+                                    </div>
+                                    <p className="small text-muted mb-2 d-flex align-items-center gap-2">
+                                        <i className="bi bi-building text-primary"></i> Gatehouse Security Desk (24/7)
+                                    </p>
+                                    <p className="small text-muted mb-0 d-flex align-items-center gap-2">
+                                        <i className="bi bi-envelope-fill text-primary"></i> admin@gatevault.community
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="modal-footer border-top py-2 px-4 bg-light">
+                                <button type="button" className="btn btn-secondary rounded-3 px-4 fw-semibold" onClick={() => setShowForgotPassword(false)}>
+                                    {t('auth.close', 'Close')}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
