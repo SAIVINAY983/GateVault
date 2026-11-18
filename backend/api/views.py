@@ -46,7 +46,11 @@ from .reports import (
     generate_csv_report, generate_excel_report, generate_pdf_report,
     execute_sqlite_backup, REPORT_CATEGORIES
 )
-from .permissions import IsAdminUser, IsGuardUser, IsResidentUser, IsAdminOrGuard, IsPrimaryResident
+from rest_framework.exceptions import PermissionDenied
+from .permissions import (
+    IsAdminUser, IsGuardUser, IsResidentUser, IsAdminOrGuard, IsPrimaryResident,
+    IsAdminOrReadOnlyGuard, IsObjectOwnerOrAdmin, IsParcelOwnerOrPermitted, IsActiveUser
+)
 from .security import (
     get_client_ip, log_security_event, get_lockout_status,
     record_failed_login, record_successful_login, blacklist_token,
@@ -284,7 +288,7 @@ class CarrierViewSet(viewsets.ReadOnlyModelViewSet):
 class StorageShelfViewSet(viewsets.ModelViewSet):
     queryset = StorageShelf.objects.all()
     serializer_class = StorageShelfSerializer
-    permission_classes = [IsAdminOrGuard]
+    permission_classes = [IsAdminOrReadOnlyGuard]
 
 # ==========================================
 # SMART COMMUNITY DELIVERY POLICY RESOLUTION
@@ -836,11 +840,13 @@ class VerifyPickupView(views.APIView):
     permission_classes = [IsGuardUser]
 
     def post(self, request, parcel_id):
+        from django.core.cache import cache
         pin = request.data.get('pickup_pin')
         parcel = find_parcel(parcel_id, Q(status__in=['AWAITING_PICKUP', 'OVERDUE']))
         if not parcel:
             return Response({"error": "Parcel not found or already handed over"}, status=status.HTTP_404_NOT_FOUND)
         if parcel.pickup_pin == pin:
+            cache.set(f"verified_pin_{parcel.id}_{request.user.id}", True, 900)
             return Response({
                 "message": "Valid PIN",
                 "parcel": ParcelSerializer(parcel).data
@@ -852,12 +858,26 @@ class ConfirmHandoverView(views.APIView):
     permission_classes = [IsGuardUser]
 
     def post(self, request, parcel_id):
+        from django.core.cache import cache
         collected_by_role_type = request.data.get('collected_by_role_type', 'PRIMARY_RESIDENT')
         household_member_id = request.data.get('household_member_id')
+        pin = request.data.get('pickup_pin')
 
         parcel = find_parcel(parcel_id, Q(status__in=['AWAITING_PICKUP', 'OVERDUE']))
         if not parcel:
             return Response({"error": "Parcel not found or already handed over"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Enforce pickup verification: guard cannot bypass PIN verification
+        cache_key = f"verified_pin_{parcel.id}_{request.user.id}"
+        is_pre_verified = cache.get(cache_key)
+        is_pin_valid = pin and str(pin).strip() == str(parcel.pickup_pin).strip()
+
+        if not (is_pre_verified or is_pin_valid):
+            return Response({
+                "error": "Pickup verification required. Security guard must verify the resident pickup PIN prior to handover."
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        cache.delete(cache_key)
 
         if collected_by_role_type == 'HOUSEHOLD_MEMBER':
             if not household_member_id:
@@ -1140,6 +1160,8 @@ class AdminUserManagementViewSet(viewsets.ViewSet):
     def toggle_active(self, request, pk=None):
         try:
             user = User.objects.exclude(id=request.user.id).get(pk=pk)
+            if user.is_superuser:
+                return Response({"error": "Superuser accounts cannot be modified."}, status=status.HTTP_403_FORBIDDEN)
             user.is_active = not user.is_active
             user.save()
             return Response({"message": f"User {'activated' if user.is_active else 'deactivated'} successfully", "is_active": user.is_active})
@@ -1207,6 +1229,13 @@ class ExpectedDeliveryViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            if self.request.user.is_authenticated and (self.request.user.role == 'ADMIN' or self.request.user.is_superuser):
+                return [IsAdminUser()]
+            return [IsResidentUser()]
+        return [IsAuthenticated()]
+
     def get_queryset(self):
         user = self.request.user
         if user.role == 'RESIDENT':
@@ -1225,16 +1254,17 @@ class ExpectedDeliveryViewSet(viewsets.ModelViewSet):
         if not tracking_id:
             return Response({"error": "Tracking ID is required"}, status=status.HTTP_400_BAD_REQUEST)
             
-        delivery = ExpectedDelivery.objects.filter(
+        qs = self.get_queryset()
+        delivery = qs.filter(
             tracking_id=tracking_id.strip(), 
             status__in=['SCHEDULED', 'EXPECTED', 'RESCHEDULED']
         ).first()
         if delivery:
             return Response(self.get_serializer(delivery).data)
             
-        if ExpectedDelivery.objects.filter(tracking_id=tracking_id.strip(), status='RECEIVED').exists():
+        if qs.filter(tracking_id=tracking_id.strip(), status='RECEIVED').exists():
             return Response({"error": "This delivery has already been received at the gatehouse."}, status=status.HTTP_404_NOT_FOUND)
-        if ExpectedDelivery.objects.filter(tracking_id=tracking_id.strip(), status='CANCELLED').exists():
+        if qs.filter(tracking_id=tracking_id.strip(), status='CANCELLED').exists():
             return Response({"error": "This expected delivery was cancelled."}, status=status.HTTP_404_NOT_FOUND)
             
         return Response({"error": "No expected delivery found for this Tracking ID."}, status=status.HTTP_404_NOT_FOUND)
@@ -1274,6 +1304,17 @@ class ExpectedDeliveryViewSet(viewsets.ModelViewSet):
             for guard in guards
         ]
         Notification.objects.bulk_create(notifications)
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        if self.request.user.role == 'RESIDENT' and instance.resident != self.request.user:
+            raise PermissionDenied("You can only modify your own expected deliveries.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.role == 'RESIDENT' and instance.resident != self.request.user:
+            raise PermissionDenied("You can only delete your own expected deliveries.")
+        instance.delete()
 
     @action(detail=False, methods=['get'])
     def calendar(self, request):
@@ -2813,7 +2854,7 @@ def compile_shift_report(shift, end_time=None):
 
 
 class GuardShiftStartView(views.APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminOrGuard]
 
     def post(self, request):
         if request.user.role not in ['GUARD', 'ADMIN'] and not request.user.is_staff:
@@ -2838,7 +2879,7 @@ class GuardShiftStartView(views.APIView):
 
 
 class GuardCurrentShiftView(views.APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminOrGuard]
 
     def get(self, request):
         if request.user.role not in ['GUARD', 'ADMIN'] and not request.user.is_staff:
@@ -2874,7 +2915,7 @@ class GuardCurrentShiftView(views.APIView):
 
 
 class GuardShiftHandoverView(views.APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminOrGuard]
 
     def post(self, request, pk):
         try:
@@ -2919,7 +2960,7 @@ class GuardShiftHandoverView(views.APIView):
 
 
 class GuardShiftReportView(views.APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminOrGuard]
 
     def get(self, request, pk):
         try:
@@ -2938,7 +2979,7 @@ class GuardShiftReportView(views.APIView):
 
 
 class GuardShiftAcceptView(views.APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminOrGuard]
 
     def post(self, request, pk):
         if request.user.role not in ['GUARD', 'ADMIN'] and not request.user.is_staff:
@@ -2974,7 +3015,7 @@ class GuardShiftAcceptView(views.APIView):
 
 
 class AdminShiftsListView(views.APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def get(self, request):
         if request.user.role != 'ADMIN' and not request.user.is_staff:
@@ -3014,7 +3055,7 @@ class AdminShiftsListView(views.APIView):
 
 
 class AdminShiftForceAcceptView(views.APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def post(self, request, pk):
         if request.user.role != 'ADMIN' and not request.user.is_staff:
@@ -3361,7 +3402,7 @@ class CreateGuestPickupAuthorizationView(views.APIView):
     POST /api/parcels/<int:parcel_id>/guest-authorization/
     Resident creates a secure, temporary guest pickup pass for a specific pending parcel.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsResidentUser]
 
     def post(self, request, parcel_id):
         parcel = find_parcel(parcel_id)
@@ -3450,7 +3491,7 @@ class ResidentGuestAuthorizationsListView(generics.ListAPIView):
     GET /api/resident/guest-authorizations/
     Returns guest authorizations created by the authenticated resident.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsResidentUser]
     serializer_class = GuestPickupAuthorizationSerializer
 
     def get_queryset(self):
@@ -3472,7 +3513,7 @@ class RevokeGuestAuthorizationView(views.APIView):
     POST /api/guest-authorizations/<int:id>/revoke/
     Allows the resident or admin to revoke an active guest pickup authorization.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsResidentUser]
 
     def post(self, request, id):
         auth = GuestPickupAuthorization.objects.filter(id=id).first()

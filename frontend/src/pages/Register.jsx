@@ -490,7 +490,7 @@ const Register = () => {
                                         })}
                                     >
                                         <option value="">
-                                            {loadingFloors ? t('common.loading', 'Loading floors...') : (!formData.tower ? t('auth.select_tower_first', 'Select Tower first') : t('auth.select_floor', 'Select Floor...'))}
+                                            {loadingFloors ? t('common.loading', 'Loading floors...') : t('auth.select_floor', 'Select Floor...')}
                                         </option>
                                         {floors.map(fl => (
                                             <option key={fl.floor_number} value={fl.floor_number}>{fl.floor_name}</option>
@@ -509,7 +509,7 @@ const Register = () => {
                                         onChange={e => setFormData({...formData, flat_id: e.target.value})}
                                     >
                                         <option value="">
-                                            {loadingFlats ? t('common.loading', 'Loading flats...') : (formData.floor === '' ? t('auth.select_floor_first', 'Select Floor first') : t('auth.select_flat', 'Select Flat...'))}
+                                            {loadingFlats ? t('common.loading', 'Loading flats...') : t('auth.select_flat', 'Select Flat...')}
                                         </option>
                                         {flats.map(f => <option key={f.id} value={f.id}>Flat {f.number}</option>)}
                                     </select>
