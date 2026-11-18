@@ -8,7 +8,8 @@ from .models import (
     ParcelInspection, ParcelIncident, IncidentHistory, HouseholdMember, HouseholdAuditLog, ParcelQRPickupPass,
     GuardShift, CommunityDeliveryPolicy, TowerDeliveryPolicy, DeliveryPolicyAuditLog,
     GuestPickupAuthorization, ShelfReservation, ShelfAssignmentHistory,
-    CourierVisit, PriorityAlert, AlertHistory, CommunityFeedback, DatabaseBackup
+    CourierVisit, PriorityAlert, AlertHistory, CommunityFeedback, DatabaseBackup,
+    AuditLog, SecurityAlert
 )
 
 class UserSerializer(serializers.ModelSerializer):
@@ -84,6 +85,8 @@ class ParcelSerializer(serializers.ModelSerializer):
     carrier_name = serializers.SerializerMethodField()
     shelf_name = serializers.SerializerMethodField()
     resident_name = serializers.SerializerMethodField()
+    pickup_pin = serializers.SerializerMethodField()
+    is_pin_expired = serializers.ReadOnlyField()
     expected_delivery_id = serializers.IntegerField(write_only=True, required=False)
     shelf = serializers.PrimaryKeyRelatedField(queryset=StorageShelf.objects.all(), required=False, allow_null=True)
     courier_payment_confirmed = serializers.BooleanField(write_only=True, required=False)
@@ -105,7 +108,7 @@ class ParcelSerializer(serializers.ModelSerializer):
             'id', 'parcel_id', 'delivery_type', 'parcel_size', 'dimensions', 'handling_instructions',
             'flat', 'flat_details', 'resident', 'resident_name',
             'carrier', 'carrier_name', 'courier_visit', 'courier_visit_display', 'tracking_number', 'shelf', 'shelf_name',
-            'status', 'pickup_pin', 'received_at', 'handed_over_at', 'is_overdue', 'expected_delivery_id',
+            'status', 'pickup_pin', 'is_pin_expired', 'received_at', 'handed_over_at', 'is_overdue', 'expected_delivery_id',
             'payment_type', 'cod_amount', 'payment_method', 'payment_status', 'payment_confirmed_by', 
             'payment_confirmed_at', 'courier_payment_confirmed', 'payment_confirmed_by_username',
             'is_open_box', 'open_box_resolution',
@@ -116,7 +119,37 @@ class ParcelSerializer(serializers.ModelSerializer):
             'household_member', 'delivery_location', 'direct_delivery_verification', 'direct_delivery_photo', 'collected_by_name',
             'has_active_qr_pass'
         ]
-        read_only_fields = ['parcel_id', 'pickup_pin', 'received_at', 'handed_over_at', 'payment_confirmed_by', 'payment_confirmed_at']
+        read_only_fields = ['parcel_id', 'pickup_pin', 'is_pin_expired', 'received_at', 'handed_over_at', 'payment_confirmed_by', 'payment_confirmed_at']
+
+    def validate_status(self, value):
+        if self.instance and value != self.instance.status:
+            if self.instance.status in Parcel.TERMINAL_STATUSES:
+                raise serializers.ValidationError(
+                    f"Data Integrity Violation: Parcel '{self.instance.parcel_id}' is already in terminal status '{self.instance.status}' and cannot be altered."
+                )
+        return value
+
+    def get_pickup_pin(self, obj):
+        request = self.context.get('request')
+        if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
+            return None
+        # Once collected/handed over or cancelled, never expose PIN
+        if obj.status not in ['AWAITING_PICKUP', 'OVERDUE']:
+            return None
+        # Expired PINs are not exposed
+        if obj.is_pin_expired:
+            return None
+        user = request.user
+        if user.role == 'RESIDENT':
+            if user == obj.resident or obj.resident == user or obj.delegated_to == user or obj.actual_receiver == user:
+                return obj.pickup_pin
+            try:
+                if user.resident_profile.flat == obj.flat:
+                    return obj.pickup_pin
+            except Exception:
+                pass
+            return None
+        return None
 
     def get_resident_name(self, obj):
         if obj.resident:
@@ -1340,6 +1373,63 @@ class DatabaseBackupSerializer(serializers.ModelSerializer):
             return f"{round(size / 1024, 1)} KB"
         else:
             return f"{round(size / (1024 * 1024), 2)} MB"
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    """
+    Read-only serializer for AuditLog records.
+    Provides safe serialization of security and operational event logs.
+    """
+    actor_name = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    severity_display = serializers.CharField(source='get_severity_display', read_only=True)
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            'id', 'event_id', 'event_type', 'actor', 'actor_name', 'actor_username',
+            'actor_role', 'target_entity_type', 'target_entity_id', 'action_description',
+            'timestamp', 'status', 'status_display', 'ip_address', 'severity',
+            'severity_display', 'metadata'
+        ]
+        read_only_fields = fields
+
+    def get_actor_name(self, obj):
+        if obj.actor:
+            return obj.actor.get_full_name() or obj.actor.username
+        return obj.actor_username or 'System'
+
+
+class SecurityAlertSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Suspicious Activity Security Alerts.
+    Allows Community Admins to inspect incidents and record resolution notes.
+    """
+    resolved_by_name = serializers.SerializerMethodField()
+    severity_display = serializers.CharField(source='get_severity_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = SecurityAlert
+        fields = [
+            'id', 'alert_id', 'title', 'alert_type', 'severity', 'severity_display',
+            'status', 'status_display', 'affected_user', 'affected_username', 'source_ip',
+            'details', 'event_count', 'threshold_limit', 'first_detected_at',
+            'last_detected_at', 'resolved_by', 'resolved_by_name', 'resolved_at',
+            'resolution_notes', 'metadata'
+        ]
+        read_only_fields = [
+            'id', 'alert_id', 'title', 'alert_type', 'severity', 'severity_display',
+            'affected_user', 'affected_username', 'source_ip', 'details', 'event_count',
+            'threshold_limit', 'first_detected_at', 'last_detected_at',
+            'resolved_by', 'resolved_by_name', 'resolved_at'
+        ]
+
+    def get_resolved_by_name(self, obj):
+        if obj.resolved_by:
+            return obj.resolved_by.get_full_name() or obj.resolved_by.username
+        return None
+
 
 
 

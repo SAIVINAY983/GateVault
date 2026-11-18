@@ -1,4 +1,5 @@
 from rest_framework import viewsets, generics, status, views, serializers
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -23,7 +24,8 @@ from .models import (
     ParcelInspection, ParcelIncident, IncidentHistory, HouseholdMember, HouseholdAuditLog, ParcelQRPickupPass,
     GuardShift, CommunityDeliveryPolicy, TowerDeliveryPolicy, DeliveryPolicyAuditLog,
     GuestPickupAuthorization, ShelfReservation, ShelfAssignmentHistory,
-    CourierVisit, PriorityAlert, AlertHistory, CommunityFeedback, DatabaseBackup
+    CourierVisit, PriorityAlert, AlertHistory, CommunityFeedback, DatabaseBackup,
+    AuditLog, SecurityAlert
 )
 from .serializers import (
     UserSerializer, TowerSerializer, FlatSerializer, CarrierSerializer, StorageShelfSerializer,
@@ -38,7 +40,8 @@ from .serializers import (
     CourierVisitSerializer, CourierVisitEntrySerializer,
     PriorityAlertSerializer, PriorityAlertCreateSerializer, AlertHistorySerializer,
     CommunityFeedbackSerializer, CommunityFeedbackCreateSerializer, CommunityFeedbackUpdateSerializer,
-    DatabaseBackupSerializer, ResidentApprovalSerializer
+    DatabaseBackupSerializer, ResidentApprovalSerializer,
+    AuditLogSerializer, SecurityAlertSerializer
 )
 from .oauth import verify_google_id_token, create_registration_token, verify_registration_token
 from .reports import (
@@ -54,7 +57,12 @@ from .permissions import (
 from .security import (
     get_client_ip, log_security_event, get_lockout_status,
     record_failed_login, record_successful_login, blacklist_token,
-    LoginRateThrottle, RegisterRateThrottle
+    LoginRateThrottle, RegisterRateThrottle,
+    PasswordResetRateThrottle, OtpVerifyRateThrottle, PinVerifyRateThrottle,
+    QrVerifyRateThrottle, ParcelIntakeRateThrottle, SensitiveAdminRateThrottle,
+    secure_compare_pin, get_pin_lockout_status, record_failed_pin_attempt,
+    record_successful_pin_verification, log_pickup_audit,
+    record_audit_event, trigger_or_update_security_alert
 )
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -68,11 +76,16 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         is_locked, remaining_seconds = get_lockout_status(username, ip_address)
         if is_locked:
             minutes = max(1, (remaining_seconds + 59) // 60)
-            log_security_event('AUTH_LOCKOUT_BLOCKED', {
-                'username': username or 'unknown',
-                'ip': ip_address,
-                'remaining_seconds': remaining_seconds
-            })
+            record_audit_event(
+                'LOGIN_FAILED',
+                f"Login rejected due to active lockout for '{username}'.",
+                actor_username=username,
+                target_entity_type='User',
+                status='BLOCKED',
+                severity='HIGH',
+                ip_address=ip_address,
+                metadata={'lockout_seconds': remaining_seconds}
+            )
             raise exceptions.Throttled(
                 detail=f"Too many failed login attempts. Account temporarily locked for security. Please try again in {minutes} minute(s)."
             )
@@ -114,10 +127,17 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         # 3. Check if account is deactivated
         existing_user = User.objects.filter(username=username).first()
         if existing_user and not existing_user.is_active:
-            log_security_event('AUTH_LOGIN_DEACTIVATED', {
-                'username': username,
-                'ip': ip_address
-            })
+            record_audit_event(
+                'INACTIVE_ACCOUNT_ACTIVITY',
+                f"Deactivated user '{username}' attempted to log in.",
+                actor_username=username,
+                actor_role=existing_user.role,
+                target_entity_type='User',
+                target_entity_id=existing_user.id,
+                status='BLOCKED',
+                severity='HIGH',
+                ip_address=ip_address
+            )
             raise exceptions.AuthenticationFailed("This account has been deactivated. Please contact your Community Admin.")
 
         # 4. Authenticate credentials with generic error response and failure counting
@@ -125,20 +145,30 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             data = super().validate(attrs)
         except Exception:
             record_failed_login(username, ip_address)
-            log_security_event('AUTH_LOGIN_FAILURE', {
-                'username': username or 'unknown',
-                'ip': ip_address,
-                'reason': 'Invalid credentials'
-            })
+            record_audit_event(
+                'LOGIN_FAILED',
+                f"Failed login attempt for username '{username}'.",
+                actor_username=username,
+                target_entity_type='User',
+                status='FAILED',
+                severity='MEDIUM',
+                ip_address=ip_address,
+                metadata={'reason': 'Invalid credentials'}
+            )
             raise exceptions.AuthenticationFailed("Invalid credentials. Please check your username and password.")
 
         # 5. Successful login: clear lockout counters and audit log
         record_successful_login(username, ip_address)
-        log_security_event('AUTH_LOGIN_SUCCESS', {
-            'username': self.user.username,
-            'role': self.user.role,
-            'ip': ip_address
-        })
+        record_audit_event(
+            'LOGIN_SUCCESS',
+            f"User {self.user.username} logged in successfully.",
+            actor=self.user,
+            target_entity_type='User',
+            target_entity_id=self.user.id,
+            status='SUCCESS',
+            severity='LOW',
+            ip_address=ip_address
+        )
 
         is_primary = True
         approval_status = 'APPROVED'
@@ -185,14 +215,35 @@ class PublicResidentRegisterView(generics.CreateAPIView):
     
     def create(self, request, *args, **kwargs):
         ip_address = get_client_ip(request)
+
+        # Detect role escalation / privilege modification attempt
+        role_req = request.data.get('role')
+        if role_req and str(role_req).upper() in ['ADMIN', 'GUARD']:
+            record_audit_event(
+                'UNAUTHORIZED_ROLE_MUTATION',
+                f"Registration payload attempted to inject unauthorized role '{role_req}'.",
+                actor_username=request.data.get('username', 'anonymous'),
+                actor_role='ANONYMOUS',
+                target_entity_type='User',
+                status='BLOCKED',
+                severity='CRITICAL',
+                ip_address=ip_address,
+                metadata={'attempted_role': role_req}
+            )
+
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            log_security_event('AUTH_REGISTER_SUCCESS', {
-                'username': user.username,
-                'email_domain': user.email.split('@')[-1] if '@' in user.email else 'unknown',
-                'ip': ip_address
-            })
+            record_audit_event(
+                'USER_REGISTERED',
+                f"New resident registered: {user.username}.",
+                actor=user,
+                target_entity_type='User',
+                target_entity_id=user.id,
+                status='SUCCESS',
+                severity='LOW',
+                ip_address=ip_address
+            )
             return Response(
                 {
                     "message": "Resident registration submitted successfully. Your account is pending Community Admin approval.",
@@ -223,15 +274,100 @@ class LogoutView(views.APIView):
         if refresh_token:
             blacklist_token(refresh_token)
 
-        log_security_event('AUTH_LOGOUT', {
-            'username': username,
-            'ip': ip_address
-        })
+        record_audit_event(
+            'LOGOUT',
+            f"User {username} logged out.",
+            actor=request.user if request.user.is_authenticated else None,
+            actor_username=username,
+            target_entity_type='User',
+            status='SUCCESS',
+            severity='LOW',
+            ip_address=ip_address
+        )
 
         return Response(
             {"message": "Logged out successfully. Session tokens invalidated."},
             status=status.HTTP_200_OK
         )
+
+class PasswordResetRequestView(views.APIView):
+    """
+    POST /api/auth/password-reset/
+    Accepts email or username to initiate password reset.
+    Enforces PasswordResetRateThrottle (5/hr).
+    Always returns generic 200 response to prevent user enumeration.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetRateThrottle]
+
+    def post(self, request):
+        email_or_user = (request.data.get('email') or request.data.get('username') or '').strip()
+        ip_addr = get_client_ip(request)
+
+        if email_or_user:
+            record_audit_event(
+                'PASSWORD_RESET_REQUESTED',
+                f"Password reset requested for {email_or_user[:3]}*** from IP {ip_addr}.",
+                actor_username=email_or_user,
+                actor_role='ANONYMOUS',
+                target_entity_type='AUTH',
+                status='SUCCESS',
+                severity='INFO',
+                ip_address=ip_addr
+            )
+
+        return Response({
+            "message": "If an active account matches the provided identifier, instructions have been sent."
+        }, status=status.HTTP_200_OK)
+
+
+class OTPVerifyView(views.APIView):
+    """
+    POST /api/auth/verify-otp/
+    Validates submitted one-time password with constant-time comparison.
+    Enforces OtpVerifyRateThrottle (10/min).
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [OtpVerifyRateThrottle]
+
+    def post(self, request):
+        otp = str(request.data.get('otp', '')).strip()
+        user_identifier = str(request.data.get('identifier', '')).strip()
+        ip_addr = get_client_ip(request)
+
+        if not otp or not user_identifier:
+            return Response({"error": "Identifier and OTP code are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Constant-time comparison against cached OTP if present
+        expected_otp = cache.get(f"otp:{user_identifier}")
+        is_valid = bool(expected_otp and secrets.compare_digest(str(expected_otp), otp))
+
+        if not is_valid:
+            record_audit_event(
+                'OTP_VERIFICATION_FAILED',
+                f"Invalid OTP verification attempt for identifier {user_identifier[:3]}*** from IP {ip_addr}.",
+                actor_username=user_identifier,
+                actor_role='ANONYMOUS',
+                target_entity_type='AUTH',
+                status='FAILED',
+                severity='WARNING',
+                ip_address=ip_addr
+            )
+            return Response({"error": "Invalid or expired verification code."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Invalidate OTP immediately to prevent replay
+        cache.delete(f"otp:{user_identifier}")
+        record_audit_event(
+            'OTP_VERIFIED',
+            f"Successful OTP verification for {user_identifier[:3]}***.",
+            actor_username=user_identifier,
+            actor_role='ANONYMOUS',
+            target_entity_type='AUTH',
+            status='SUCCESS',
+            severity='INFO',
+            ip_address=ip_addr
+        )
+        return Response({"message": "Verification code accepted successfully."}, status=status.HTTP_200_OK)
 
 class TowerViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Tower.objects.all()
@@ -419,6 +555,7 @@ class ParcelIntakeView(generics.CreateAPIView):
     queryset = Parcel.objects.all()
     serializer_class = ParcelSerializer
     permission_classes = [IsGuardUser]
+    throttle_classes = [ParcelIntakeRateThrottle]
 
     def perform_create(self, serializer):
         with transaction.atomic():
@@ -717,6 +854,26 @@ class ParcelIntakeView(generics.CreateAPIView):
                     action_type='INITIAL_INTAKE',
                     reason="Initial intake assignment" + (" (Slot Reserved)" if reservation else "")
                 )
+
+            record_audit_event(
+                event_type='PARCEL_REGISTERED',
+                action_description=f"Guard {self.request.user.username} registered incoming parcel {parcel.parcel_id} for Flat {parcel.flat.number}.",
+                actor=self.request.user,
+                target_entity_type='Parcel',
+                target_entity_id=parcel.parcel_id,
+                severity='LOW',
+                ip_address=get_client_ip(self.request),
+                metadata={'flat': parcel.flat.number, 'delivery_type': parcel.delivery_type}
+            )
+            record_audit_event(
+                event_type='PIN_GENERATED',
+                action_description=f"Secure PIN generated for parcel {parcel.parcel_id}.",
+                actor=self.request.user,
+                target_entity_type='Parcel',
+                target_entity_id=parcel.parcel_id,
+                severity='LOW',
+                ip_address=get_client_ip(self.request)
+            )
         
         if expected_delivery and status_val != 'DELIVERY_ATTEMPTED':
             expected_delivery.status = 'RECEIVED'
@@ -838,21 +995,68 @@ def find_parcel(identifier, extra_filter=None):
 
 class VerifyPickupView(views.APIView):
     permission_classes = [IsGuardUser]
+    throttle_classes = [PinVerifyRateThrottle]
 
     def post(self, request, parcel_id):
         from django.core.cache import cache
         pin = request.data.get('pickup_pin')
-        parcel = find_parcel(parcel_id, Q(status__in=['AWAITING_PICKUP', 'OVERDUE']))
+        if not pin:
+            return Response({"error": "Pickup PIN is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        parcel = find_parcel(parcel_id)
         if not parcel:
-            return Response({"error": "Parcel not found or already handed over"}, status=status.HTTP_404_NOT_FOUND)
-        if parcel.pickup_pin == pin:
+            return Response({"error": "Parcel not found or does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        if parcel.status not in ['AWAITING_PICKUP', 'OVERDUE']:
+            return Response(
+                {"error": f"Parcel {parcel.parcel_id} is already {parcel.get_status_display().lower()}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 1. Check temporary lockout status
+        is_locked, remaining_seconds, remaining_attempts = get_pin_lockout_status(parcel.id)
+        if is_locked:
+            lockout_mins = int(remaining_seconds // 60) + 1
+            return Response({
+                "error": f"Too many failed verification attempts for this parcel. Pickup verification is temporarily locked for {lockout_mins} minute(s).",
+                "locked": True,
+                "lockout_seconds": remaining_seconds
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
+        # 2. Check PIN expiration
+        if parcel.is_pin_expired:
+            log_pickup_audit('PICKUP_PIN_EXPIRED', {
+                'parcel_id': parcel.parcel_id,
+                'guard_id': request.user.id
+            })
+            return Response({
+                "error": "This pickup PIN has expired. The resident must refresh the pickup PIN or present a valid QR pass."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 3. Constant-time PIN validation
+        if secure_compare_pin(parcel.pickup_pin, pin):
+            record_successful_pin_verification(parcel.id, request.user.id)
             cache.set(f"verified_pin_{parcel.id}_{request.user.id}", True, 900)
             return Response({
                 "message": "Valid PIN",
-                "parcel": ParcelSerializer(parcel).data
+                "verified": True,
+                "parcel": ParcelSerializer(parcel, context={'request': request}).data
             })
         else:
-            return Response({"error": "Invalid PIN"}, status=status.HTTP_400_BAD_REQUEST)
+            is_locked, remaining_attempts, lockout_seconds = record_failed_pin_attempt(
+                parcel.id, request.user.id, get_client_ip(request)
+            )
+            if is_locked:
+                return Response({
+                    "error": "Maximum failed verification attempts reached. Parcel pickup is temporarily locked for 15 minutes.",
+                    "locked": True,
+                    "remaining_attempts": 0,
+                    "lockout_seconds": lockout_seconds
+                }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+            return Response({
+                "error": f"Invalid PIN. {remaining_attempts} attempt(s) remaining before temporary lockout.",
+                "remaining_attempts": remaining_attempts
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class ConfirmHandoverView(views.APIView):
     permission_classes = [IsGuardUser]
@@ -863,21 +1067,31 @@ class ConfirmHandoverView(views.APIView):
         household_member_id = request.data.get('household_member_id')
         pin = request.data.get('pickup_pin')
 
-        parcel = find_parcel(parcel_id, Q(status__in=['AWAITING_PICKUP', 'OVERDUE']))
-        if not parcel:
-            return Response({"error": "Parcel not found or already handed over"}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            parcel_obj = find_parcel(parcel_id)
+            if not parcel_obj:
+                return Response({"error": "Parcel not found or already handed over."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Enforce pickup verification: guard cannot bypass PIN verification
-        cache_key = f"verified_pin_{parcel.id}_{request.user.id}"
-        is_pre_verified = cache.get(cache_key)
-        is_pin_valid = pin and str(pin).strip() == str(parcel.pickup_pin).strip()
+            # Row-level lock on the parcel to prevent race conditions from concurrent pickup calls
+            parcel = Parcel.objects.select_for_update().filter(
+                id=parcel_obj.id,
+                status__in=['AWAITING_PICKUP', 'OVERDUE']
+            ).first()
 
-        if not (is_pre_verified or is_pin_valid):
-            return Response({
-                "error": "Pickup verification required. Security guard must verify the resident pickup PIN prior to handover."
-            }, status=status.HTTP_403_FORBIDDEN)
+            if not parcel:
+                return Response({"error": "Parcel already handed over or unavailable."}, status=status.HTTP_409_CONFLICT)
 
-        cache.delete(cache_key)
+            # Enforce pickup verification: guard cannot bypass PIN verification
+            cache_key = f"verified_pin_{parcel.id}_{request.user.id}"
+            is_pre_verified = cache.get(cache_key)
+            is_pin_valid = pin and secure_compare_pin(parcel.pickup_pin, pin)
+
+            if not (is_pre_verified or is_pin_valid):
+                return Response({
+                    "error": "Pickup verification required. Security guard must verify the resident pickup PIN prior to handover."
+                }, status=status.HTTP_403_FORBIDDEN)
+
+            cache.delete(cache_key)
 
         if collected_by_role_type == 'HOUSEHOLD_MEMBER':
             if not household_member_id:
@@ -919,6 +1133,7 @@ class ConfirmHandoverView(views.APIView):
         parcel.status = 'HANDED_OVER'
         parcel.handed_over_at = timezone.now()
         parcel.handed_over_by = request.user
+        parcel.pickup_pin = ''  # PIN immediately invalidated upon handover! Prevent reuse!
         parcel.shelf = None
         parcel.save()
 
@@ -932,7 +1147,18 @@ class ConfirmHandoverView(views.APIView):
                 reason='Parcel picked up / handed over'
             )
 
-        PickupVerification.objects.create(parcel=parcel, guard=request.user)
+        PickupVerification.objects.create(
+            parcel=parcel,
+            guard=request.user,
+            verification_method='PIN'
+        )
+
+        log_pickup_audit('PICKUP_SUCCESSFUL', {
+            'parcel_id': parcel.parcel_id,
+            'guard_id': request.user.id,
+            'method': 'PIN',
+            'collector_type': collected_by_role_type
+        })
 
         if parcel.resident:
             carrier_name = parcel.carrier.name if parcel.carrier else "parcel"
@@ -1164,6 +1390,16 @@ class AdminUserManagementViewSet(viewsets.ViewSet):
                 return Response({"error": "Superuser accounts cannot be modified."}, status=status.HTTP_403_FORBIDDEN)
             user.is_active = not user.is_active
             user.save()
+            action_type = 'ACCOUNT_ACTIVATED' if user.is_active else 'ACCOUNT_DEACTIVATED'
+            record_audit_event(
+                event_type=action_type,
+                action_description=f"Admin {request.user.username} {'activated' if user.is_active else 'deactivated'} account for {user.username}.",
+                actor=request.user,
+                target_entity_type='User',
+                target_entity_id=user.id,
+                severity='MEDIUM',
+                ip_address=get_client_ip(request)
+            )
             return Response({"message": f"User {'activated' if user.is_active else 'deactivated'} successfully", "is_active": user.is_active})
         except User.DoesNotExist:
             return Response({"error": "User not found or cannot modify self."}, status=status.HTTP_404_NOT_FOUND)
@@ -2516,6 +2752,7 @@ class GuardVerifyQRView(views.APIView):
     Returns full parcel, flat, and authorized collector details.
     """
     permission_classes = [IsGuardUser]
+    throttle_classes = [QrVerifyRateThrottle]
 
     def post(self, request):
         token_input = request.data.get('token', '').strip()
@@ -2534,10 +2771,19 @@ class GuardVerifyQRView(views.APIView):
         qr_pass = ParcelQRPickupPass.objects.filter(token_hash=token_hash).first()
 
         if not qr_pass:
+            log_pickup_audit('PICKUP_QR_FAILURE', {
+                'guard_id': request.user.id,
+                'reason': 'TOKEN_NOT_FOUND'
+            })
             return Response({"error": "Invalid QR code token. No matching pickup pass found."}, status=status.HTTP_404_NOT_FOUND)
 
         # Check used status
         if qr_pass.status == 'USED':
+            log_pickup_audit('PICKUP_QR_REUSED', {
+                'qr_pass_id': qr_pass.id,
+                'parcel_id': qr_pass.parcel.parcel_id if qr_pass.parcel else None,
+                'guard_id': request.user.id
+            })
             used_time = qr_pass.used_at.strftime('%Y-%m-%d %H:%M') if qr_pass.used_at else 'earlier'
             return Response(
                 {"error": f"This QR pass has already been used (at {used_time}) and cannot be reused."},
@@ -2546,6 +2792,11 @@ class GuardVerifyQRView(views.APIView):
 
         # Check revoked status
         if qr_pass.status == 'REVOKED':
+            log_pickup_audit('PICKUP_QR_REVOKED', {
+                'qr_pass_id': qr_pass.id,
+                'parcel_id': qr_pass.parcel.parcel_id if qr_pass.parcel else None,
+                'guard_id': request.user.id
+            })
             return Response(
                 {"error": "This QR pass was revoked and is no longer valid."},
                 status=status.HTTP_400_BAD_REQUEST
@@ -2556,6 +2807,11 @@ class GuardVerifyQRView(views.APIView):
             if qr_pass.status != 'EXPIRED':
                 qr_pass.status = 'EXPIRED'
                 qr_pass.save()
+            log_pickup_audit('PICKUP_QR_EXPIRED', {
+                'qr_pass_id': qr_pass.id,
+                'parcel_id': qr_pass.parcel.parcel_id if qr_pass.parcel else None,
+                'guard_id': request.user.id
+            })
             return Response(
                 {"error": f"This QR pass has expired at {qr_pass.expires_at.strftime('%H:%M:%S UTC')}. Please request the resident to refresh it."},
                 status=status.HTTP_400_BAD_REQUEST
@@ -2592,6 +2848,13 @@ class GuardVerifyQRView(views.APIView):
         # Build detailed response for Guard confirmation
         collector_name = qr_pass.authorized_collector.get_full_name() or qr_pass.authorized_collector.username
         resident_name = parcel.resident.get_full_name() or parcel.resident.username if parcel.resident else "Primary Resident"
+
+        log_pickup_audit('PICKUP_QR_VERIFIED', {
+            'qr_pass_id': qr_pass.id,
+            'parcel_id': parcel.parcel_id,
+            'guard_id': request.user.id,
+            'collector': collector_name
+        })
 
         return Response({
             "verified": True,
@@ -2631,109 +2894,126 @@ class GuardConfirmQRHandoverView(views.APIView):
         token_input = request.data.get('token', '').strip()
         qr_pass_id = request.data.get('qr_pass_id')
 
-        qr_pass = None
-        if token_input:
-            if token_input.startswith('{') and 'token' in token_input:
-                try:
-                    parsed = json.loads(token_input)
-                    token_input = parsed.get('token', token_input)
-                except Exception:
-                    pass
-            token_hash = hashlib.sha256(token_input.encode('utf-8')).hexdigest()
-            qr_pass = ParcelQRPickupPass.objects.filter(token_hash=token_hash).first()
-        elif qr_pass_id:
-            qr_pass = ParcelQRPickupPass.objects.filter(id=qr_pass_id).first()
+        if not token_input and not qr_pass_id:
+            return Response({"error": "token or qr_pass_id is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not qr_pass:
-            return Response({"error": "QR pass record not found."}, status=status.HTTP_404_NOT_FOUND)
+        with transaction.atomic():
+            qr_pass = None
+            if token_input:
+                if token_input.startswith('{') and 'token' in token_input:
+                    try:
+                        parsed = json.loads(token_input)
+                        token_input = parsed.get('token', token_input)
+                    except Exception:
+                        pass
+                token_hash = hashlib.sha256(token_input.encode('utf-8')).hexdigest()
+                qr_pass = ParcelQRPickupPass.objects.select_for_update().filter(token_hash=token_hash).first()
+            elif qr_pass_id:
+                qr_pass = ParcelQRPickupPass.objects.select_for_update().filter(id=qr_pass_id).first()
 
-        if qr_pass.status == 'USED':
-            return Response({"error": "This QR pass has already been used and cannot be reused."}, status=status.HTTP_400_BAD_REQUEST)
+            if not qr_pass:
+                return Response({"error": "QR pass record not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        if qr_pass.status == 'REVOKED':
-            return Response({"error": "This QR pass has been revoked."}, status=status.HTTP_400_BAD_REQUEST)
+            if qr_pass.status == 'USED':
+                return Response({"error": "This QR pass has already been used and cannot be reused."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if qr_pass.status == 'EXPIRED' or qr_pass.is_expired:
-            qr_pass.status = 'EXPIRED'
+            if qr_pass.status == 'REVOKED':
+                return Response({"error": "This QR pass has been revoked."}, status=status.HTTP_400_BAD_REQUEST)
+
+            if qr_pass.status == 'EXPIRED' or qr_pass.is_expired:
+                qr_pass.status = 'EXPIRED'
+                qr_pass.save()
+                return Response({"error": "This QR pass has expired."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Row lock on the parcel to prevent race conditions
+            parcel = Parcel.objects.select_for_update().filter(
+                id=qr_pass.parcel_id,
+                status__in=['AWAITING_PICKUP', 'OVERDUE']
+            ).first()
+
+            if not parcel:
+                return Response({"error": "Parcel already handed over or unavailable."}, status=status.HTTP_409_CONFLICT)
+
+            # Mark QR pass as USED immediately
+            qr_pass.status = 'USED'
+            qr_pass.used_at = timezone.now()
             qr_pass.save()
-            return Response({"error": "This QR pass has expired."}, status=status.HTTP_400_BAD_REQUEST)
 
-        parcel = qr_pass.parcel
-        if parcel.status not in ['AWAITING_PICKUP', 'OVERDUE']:
-            return Response({"error": f"Parcel is already {parcel.get_status_display().lower()}."}, status=status.HTTP_400_BAD_REQUEST)
+            # Complete parcel handover & invalidate PIN immediately
+            old_shelf = parcel.shelf
+            parcel.status = 'HANDED_OVER'
+            parcel.handed_over_at = timezone.now()
+            parcel.handed_over_by = request.user
+            parcel.pickup_pin = ''  # PIN immediately invalidated upon QR handover too!
+            parcel.collected_by = qr_pass.authorized_collector
+            parcel.collected_by_role_type = qr_pass.collector_role_type
+            parcel.actual_receiver = qr_pass.authorized_collector
+            parcel.actual_receiver_name = qr_pass.authorized_collector.get_full_name() or qr_pass.authorized_collector.username
+            parcel.receiver_relationship = 'DELEGATED_FLATMATE' if qr_pass.collector_role_type == 'DELEGATED_FLATMATE' else 'SELF'
+            parcel.shelf = None
+            parcel.save()
 
-        # Mark QR pass as USED
-        qr_pass.status = 'USED'
-        qr_pass.used_at = timezone.now()
-        qr_pass.save()
+            if old_shelf:
+                ShelfAssignmentHistory.objects.create(
+                    parcel=parcel,
+                    previous_shelf=old_shelf,
+                    new_shelf=None,
+                    guard=request.user,
+                    action_type='HANDOVER_RELEASE',
+                    reason='Parcel picked up via QR Pass'
+                )
 
-        # Complete parcel handover
-        old_shelf = parcel.shelf
-        parcel.status = 'HANDED_OVER'
-        parcel.handed_over_at = timezone.now()
-        parcel.handed_over_by = request.user
-        parcel.collected_by = qr_pass.authorized_collector
-        parcel.collected_by_role_type = qr_pass.collector_role_type
-        parcel.actual_receiver = qr_pass.authorized_collector
-        parcel.actual_receiver_name = qr_pass.authorized_collector.get_full_name() or qr_pass.authorized_collector.username
-        parcel.receiver_relationship = 'DELEGATED_FLATMATE' if qr_pass.collector_role_type == 'DELEGATED_FLATMATE' else 'SELF'
-        parcel.shelf = None
-        parcel.save()
-
-        if old_shelf:
-            ShelfAssignmentHistory.objects.create(
+            # Record pickup verification with method='QR'
+            PickupVerification.objects.update_or_create(
                 parcel=parcel,
-                previous_shelf=old_shelf,
-                new_shelf=None,
-                guard=request.user,
-                action_type='HANDOVER_RELEASE',
-                reason='Parcel picked up via QR Pass'
+                defaults={
+                    'guard': request.user,
+                    'verification_method': 'QR',
+                    'qr_pass': qr_pass
+                }
             )
 
-        # Record pickup verification with method='QR'
-        PickupVerification.objects.update_or_create(
-            parcel=parcel,
-            defaults={
-                'guard': request.user,
-                'verification_method': 'QR',
-                'qr_pass': qr_pass
-            }
-        )
+            log_pickup_audit('PICKUP_SUCCESSFUL', {
+                'parcel_id': parcel.parcel_id,
+                'guard_id': request.user.id,
+                'method': 'QR',
+                'collector_type': qr_pass.collector_role_type
+            })
 
-        # Send in-app notification to the primary resident
-        if parcel.resident:
-            carrier_name = parcel.carrier.name if parcel.carrier else "parcel"
-            collector_name = qr_pass.authorized_collector.get_full_name() or qr_pass.authorized_collector.username
-            if qr_pass.collector_role_type == 'DELEGATED_FLATMATE':
-                title = "Parcel Collected via QR (Flatmate)"
-                message = f"Your {carrier_name} delivery ({parcel.parcel_id}) was collected at the gatehouse by authorized flatmate {collector_name} via Secure QR Pickup."
-            else:
-                title = "Parcel Handover Completed (QR)"
-                message = f"Your {carrier_name} delivery ({parcel.parcel_id}) was successfully handed over via Secure QR Pickup."
+            # Send in-app notification to the primary resident
+            if parcel.resident:
+                carrier_name = parcel.carrier.name if parcel.carrier else "parcel"
+                collector_name = qr_pass.authorized_collector.get_full_name() or qr_pass.authorized_collector.username
+                if qr_pass.collector_role_type == 'DELEGATED_FLATMATE':
+                    title = "Parcel Collected via QR (Flatmate)"
+                    message = f"Your {carrier_name} delivery ({parcel.parcel_id}) was collected at the gatehouse by authorized flatmate {collector_name} via Secure QR Pickup."
+                else:
+                    title = "Parcel Handover Completed (QR)"
+                    message = f"Your {carrier_name} delivery ({parcel.parcel_id}) was successfully handed over via Secure QR Pickup."
 
-            Notification.objects.create(
-                user=parcel.resident,
-                title=title,
-                message=message,
-                notification_type='HANDOVER',
-                parcel=parcel
-            )
+                Notification.objects.create(
+                    user=parcel.resident,
+                    title=title,
+                    message=message,
+                    notification_type='HANDOVER',
+                    parcel=parcel
+                )
 
-        # Also notify delegated flatmate if they collected it
-        if qr_pass.collector_role_type == 'DELEGATED_FLATMATE' and qr_pass.authorized_collector != parcel.resident:
-            carrier_name = parcel.carrier.name if parcel.carrier else "parcel"
-            Notification.objects.create(
-                user=qr_pass.authorized_collector,
-                title="Delegated Parcel Collected (QR)",
-                message=f"You successfully collected {carrier_name} delivery ({parcel.parcel_id}) for Flat {parcel.flat.number} via Secure QR Pickup.",
-                notification_type='HANDOVER',
-                parcel=parcel
-            )
+            # Also notify delegated flatmate if they collected it
+            if qr_pass.collector_role_type == 'DELEGATED_FLATMATE' and qr_pass.authorized_collector != parcel.resident:
+                carrier_name = parcel.carrier.name if parcel.carrier else "parcel"
+                Notification.objects.create(
+                    user=qr_pass.authorized_collector,
+                    title="Delegated Parcel Collected (QR)",
+                    message=f"You successfully collected {carrier_name} delivery ({parcel.parcel_id}) for Flat {parcel.flat.number} via Secure QR Pickup.",
+                    notification_type='HANDOVER',
+                    parcel=parcel
+                )
 
-        return Response({
-            "message": "Parcel handover confirmed successfully via QR verification.",
-            "parcel": ParcelSerializer(parcel, context={'request': request}).data
-        })
+            return Response({
+                "message": "Parcel handover confirmed successfully via QR verification.",
+                "parcel": ParcelSerializer(parcel, context={'request': request}).data
+            })
 
 
 # ==========================================
@@ -3699,6 +3979,11 @@ class GuardConfirmGuestHandoverView(views.APIView):
         collector_name = request.data.get('actual_collector_name') or auth.guest_name
 
         with transaction.atomic():
+            # Lock the parcel to prevent race conditions
+            parcel = Parcel.objects.select_for_update().filter(id=auth.parcel_id).first()
+            if not parcel or parcel.status == 'HANDED_OVER':
+                return Response({"error": "This parcel has already been handed over."}, status=status.HTTP_409_CONFLICT)
+
             # 1. Update guest authorization
             auth.status = 'USED'
             auth.used_at = timezone.now()
@@ -3706,10 +3991,11 @@ class GuardConfirmGuestHandoverView(views.APIView):
             auth.actual_collector_name = collector_name
             auth.save()
 
-            # 2. Release shelf & update parcel status
+            # 2. Release shelf & update parcel status & invalidate PIN immediately
             old_shelf = parcel.shelf
             parcel.status = 'HANDED_OVER'
             parcel.shelf = None
+            parcel.pickup_pin = ''  # PIN immediately invalidated
             parcel.collected_by = None
             parcel.collected_by_role_type = 'TEMPORARY_GUEST'
             parcel.actual_receiver_name = collector_name
@@ -3735,6 +4021,13 @@ class GuardConfirmGuestHandoverView(views.APIView):
                 verification_method='GUEST_PASS',
                 guest_authorization=auth
             )
+
+            log_pickup_audit('PICKUP_SUCCESSFUL', {
+                'parcel_id': parcel.parcel_id,
+                'guard_id': request.user.id,
+                'method': 'GUEST_PASS',
+                'collector_type': 'TEMPORARY_GUEST'
+            })
 
             # 4. Notify resident
             carrier_name = parcel.carrier.name if parcel.carrier else "Delivery"
@@ -5201,6 +5494,7 @@ class AdminReportExportView(views.APIView):
     Exports report in PDF, Excel (.xlsx), or CSV format with HTTP download headers.
     """
     permission_classes = [IsAdminUser]
+    throttle_classes = [SensitiveAdminRateThrottle]
 
     def get(self, request, format_type=None):
         fmt = (format_type or request.query_params.get('format', 'csv')).lower()
@@ -5242,6 +5536,7 @@ class AdminDatabaseBackupCreateView(views.APIView):
     calculates SHA256 checksum, applies retention policy, and creates admin notification.
     """
     permission_classes = [IsAdminUser]
+    throttle_classes = [SensitiveAdminRateThrottle]
 
     def post(self, request):
         backup_type = request.data.get('backup_type', 'MANUAL').upper()
@@ -5271,6 +5566,7 @@ class AdminDatabaseBackupDownloadView(views.APIView):
     Validates backup path against BASE_DIR/backups to prevent path traversal.
     """
     permission_classes = [IsAdminUser]
+    throttle_classes = [SensitiveAdminRateThrottle]
 
     def get(self, pk=None, *args, **kwargs):
         backup_id = pk or kwargs.get('pk')
@@ -5838,6 +6134,189 @@ class CommunityOverviewView(views.APIView):
             'facilities': facilities,
             'towers': towers_data
         }, status=status.HTTP_200_OK)
+
+
+# ==============================================================================
+# AUDIT LOGGING & SUSPICIOUS ACTIVITY MONITORING VIEWSETS
+# ==============================================================================
+
+class StandardAuditPagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Community Admin-only audit log inspection endpoint.
+    Strictly read-only (GET, HEAD, OPTIONS).
+    Audit log modification or deletion through the API is strictly prohibited.
+    """
+    queryset = AuditLog.objects.all().select_related('actor').order_by('-timestamp')
+    serializer_class = AuditLogSerializer
+    permission_classes = [IsAdminUser]
+    pagination_class = StandardAuditPagination
+    http_method_names = ['get', 'head', 'options']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+
+        # Filtering parameters
+        event_type = self.request.query_params.get('event_type')
+        if event_type and event_type != 'ALL':
+            qs = qs.filter(event_type=event_type)
+
+        severity = self.request.query_params.get('severity')
+        if severity and severity != 'ALL':
+            qs = qs.filter(severity=severity)
+
+        status_param = self.request.query_params.get('status')
+        if status_param and status_param != 'ALL':
+            qs = qs.filter(status=status_param)
+
+        actor_role = self.request.query_params.get('actor_role')
+        if actor_role and actor_role != 'ALL':
+            qs = qs.filter(actor_role=actor_role)
+
+        target_entity_type = self.request.query_params.get('target_entity_type')
+        if target_entity_type and target_entity_type != 'ALL':
+            qs = qs.filter(target_entity_type=target_entity_type)
+
+        date_from = self.request.query_params.get('date_from')
+        if date_from:
+            qs = qs.filter(timestamp__date__gte=date_from)
+
+        date_to = self.request.query_params.get('date_to')
+        if date_to:
+            qs = qs.filter(timestamp__date__lte=date_to)
+
+        search = self.request.query_params.get('search')
+        if search:
+            s = search.strip()
+            qs = qs.filter(
+                Q(action_description__icontains=s) |
+                Q(actor_username__icontains=s) |
+                Q(target_entity_id__icontains=s) |
+                Q(event_id__icontains=s) |
+                Q(ip_address__icontains=s)
+            )
+
+        return qs
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """
+        Summary statistics for security dashboard metrics.
+        """
+        now = timezone.now()
+        last_24h = now - timedelta(hours=24)
+
+        total_events = AuditLog.objects.count()
+        failed_logins_24h = AuditLog.objects.filter(
+            event_type='LOGIN_FAILED',
+            timestamp__gte=last_24h
+        ).count()
+        failed_verifications_24h = AuditLog.objects.filter(
+            event_type__in=['PIN_VERIFICATION_FAILED', 'QR_VERIFICATION_FAILED', 'PICKUP_PIN_LOCKOUT_TRIGGERED', 'PICKUP_QR_FAILURE'],
+            timestamp__gte=last_24h
+        ).count()
+        unauthorized_attempts_24h = AuditLog.objects.filter(
+            event_type='UNAUTHORIZED_ACCESS_ATTEMPT',
+            timestamp__gte=last_24h
+        ).count()
+        open_alerts_count = SecurityAlert.objects.filter(status='OPEN').count()
+        critical_alerts_count = SecurityAlert.objects.filter(status='OPEN', severity='CRITICAL').count()
+        high_alerts_count = SecurityAlert.objects.filter(status='OPEN', severity='HIGH').count()
+
+        return Response({
+            'total_events': total_events,
+            'failed_logins_24h': failed_logins_24h,
+            'failed_verifications_24h': failed_verifications_24h,
+            'unauthorized_attempts_24h': unauthorized_attempts_24h,
+            'open_alerts_count': open_alerts_count,
+            'critical_alerts_count': critical_alerts_count,
+            'high_alerts_count': high_alerts_count,
+        })
+
+
+class SecurityAlertViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Community Admin endpoint to inspect and resolve Suspicious Activity Security Alerts.
+    Allows reviewing and resolving suspicious activity notifications.
+    """
+    queryset = SecurityAlert.objects.all().select_related('affected_user', 'resolved_by').order_by('-last_detected_at')
+    serializer_class = SecurityAlertSerializer
+    permission_classes = [IsAdminUser]
+    pagination_class = StandardAuditPagination
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        status_param = self.request.query_params.get('status')
+        if status_param and status_param != 'ALL':
+            qs = qs.filter(status=status_param)
+
+        severity = self.request.query_params.get('severity')
+        if severity and severity != 'ALL':
+            qs = qs.filter(severity=severity)
+
+        alert_type = self.request.query_params.get('alert_type')
+        if alert_type and alert_type != 'ALL':
+            qs = qs.filter(alert_type=alert_type)
+
+        search = self.request.query_params.get('search')
+        if search:
+            s = search.strip()
+            qs = qs.filter(
+                Q(title__icontains=s) |
+                Q(details__icontains=s) |
+                Q(affected_username__icontains=s) |
+                Q(alert_id__icontains=s) |
+                Q(source_ip__icontains=s)
+            )
+
+        return qs
+
+    @action(detail=True, methods=['post'])
+    def review(self, request, pk=None):
+        alert = self.get_object()
+        alert.status = 'REVIEWED'
+        alert.save()
+        record_audit_event(
+            event_type='SECURITY_ALERT_REVIEWED',
+            action_description=f"Admin {request.user.username} marked security alert {alert.alert_id} as REVIEWED.",
+            actor=request.user,
+            target_entity_type='SecurityAlert',
+            target_entity_id=alert.alert_id,
+            ip_address=get_client_ip(request)
+        )
+        return Response({
+            'message': f"Alert {alert.alert_id} marked as reviewed.",
+            'alert': SecurityAlertSerializer(alert).data
+        })
+
+    @action(detail=True, methods=['post'])
+    def resolve(self, request, pk=None):
+        alert = self.get_object()
+        notes = request.data.get('resolution_notes') or request.data.get('notes', 'Resolved by administrator.')
+        alert.status = 'RESOLVED'
+        alert.resolved_by = request.user
+        alert.resolved_at = timezone.now()
+        alert.resolution_notes = notes
+        alert.save()
+
+        record_audit_event(
+            event_type='SECURITY_ALERT_RESOLVED',
+            action_description=f"Admin {request.user.username} resolved security alert {alert.alert_id}. Notes: {notes}",
+            actor=request.user,
+            target_entity_type='SecurityAlert',
+            target_entity_id=alert.alert_id,
+            ip_address=get_client_ip(request)
+        )
+        return Response({
+            'message': f"Alert {alert.alert_id} resolved successfully.",
+            'alert': SecurityAlertSerializer(alert).data
+        })
 
 
 

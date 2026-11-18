@@ -32,8 +32,17 @@ const PickupPass = ({ parcel, onClose }) => {
                     <div className="bg-light border rounded-4 p-4 mb-4">
                         <div className="text-uppercase text-muted fw-bold mb-2" style={{ fontSize: '0.75rem', letterSpacing: '0.1em' }}>{t('resident.pickup_pin', 'Secure PIN')}</div>
                         <div className="display-3 fw-bold text-dark pin-display lh-1 mb-0">
-                            {parcel.pickup_pin}
+                            {parcel.pickup_pin || '••••'}
                         </div>
+                        {parcel.is_pin_expired ? (
+                            <span className="badge bg-danger-subtle text-danger border border-danger-subtle mt-2">
+                                <i className="bi bi-clock-history me-1"></i>PIN Expired
+                            </span>
+                        ) : (
+                            <div className="text-muted small mt-2" style={{ fontSize: '0.72rem' }}>
+                                <i className="bi bi-shield-lock me-1"></i>Single-use • Valid 7 days • Invalidated upon handover
+                            </div>
+                        )}
                     </div>
 
                     <div className="row g-2 text-start bg-main rounded-3 p-3 mb-4 mx-0">

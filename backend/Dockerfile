@@ -1,34 +1,78 @@
-# Use lightweight official Python runtime compatible with Django 5.1
-FROM python:3.13-slim
+# ==============================================================================
+# GateVault Backend - Production Multi-Stage Hardened Dockerfile
+# Base: Official Python 3.13 Slim on Debian 12 (Bookworm)
+# Security Features: Multi-stage build, no compilers in runtime, non-root user,
+#                    minimal attack surface, unbuffered logging.
+# ==============================================================================
 
-# Prevent Python from writing .pyc files and enable unbuffered logging
+# ------------------------------------------------------------------------------
+# Stage 1: Build Dependencies
+# ------------------------------------------------------------------------------
+FROM python:3.13-slim-bookworm AS builder
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-WORKDIR /app
+WORKDIR /install
 
-# Install system dependencies (build tools, libjpeg/zlib for Pillow image processing, and curl for healthchecks)
+# Install build-time compilers and development headers required for C extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libjpeg-dev \
     zlib1g-dev \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies first for optimal Docker layer caching
-COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python packages into isolated user directory
+COPY requirements.txt /install/
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Copy application source code
-COPY . /app/
+# ------------------------------------------------------------------------------
+# Stage 2: Hardened Production Runtime
+# ------------------------------------------------------------------------------
+FROM python:3.13-slim-bookworm AS runner
 
-# Normalize line endings (CRLF -> LF) and ensure entrypoint script is executable
-RUN sed -i 's/\r$//' /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH=/home/gatevault/.local/bin:$PATH
 
-# Expose backend service port
+WORKDIR /app
+
+# Install ONLY shared runtime libraries (no build tools, minimal footprint)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libjpeg62-turbo \
+    zlib1g \
+    curl \
+    default-mysql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create dedicated unprivileged system user and group (UID/GID 10001)
+RUN groupadd -g 10001 gatevault && \
+    useradd -u 10001 -g gatevault -s /bin/sh -m -d /home/gatevault gatevault
+
+# Copy Python packages from builder stage to unprivileged user's directory
+COPY --from=builder --chown=gatevault:gatevault /root/.local /home/gatevault/.local
+
+# Pre-create writable application directories with strict non-root ownership
+RUN mkdir -p /app/media /app/backups /app/staticfiles && \
+    chown -R gatevault:gatevault /app
+
+# Copy application source code with non-root ownership
+COPY --chown=gatevault:gatevault . /app/
+
+# Normalize line endings and set execution permissions on entrypoint script
+RUN sed -i 's/\r$//' /app/docker-entrypoint.sh && \
+    chmod 755 /app/docker-entrypoint.sh
+
+# Switch to unprivileged non-root user
+USER gatevault
+
+# Expose backend application port
 EXPOSE 8000
 
-# Set entrypoint to run migrations and seeding before starting Gunicorn
+# Container healthcheck
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+    CMD curl -f http://127.0.0.1:8000/api/towers/ || exit 1
+
+# Define entrypoint and default execution command
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "120", "backend.wsgi:application"]
-

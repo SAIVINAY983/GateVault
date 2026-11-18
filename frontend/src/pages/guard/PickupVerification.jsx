@@ -33,6 +33,7 @@ const PickupVerification = () => {
     // Common states
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [pinLockout, setPinLockout] = useState({ isLocked: false, minutes: 0, remainingAttempts: null });
     const [verifiedParcel, setVerifiedParcel] = useState(null);
     const [handoverSuccess, setHandoverSuccess] = useState(false);
     const [handoverMethod, setHandoverMethod] = useState('');
@@ -151,6 +152,7 @@ const PickupVerification = () => {
             });
             const parcelData = res.data.parcel;
             setVerifiedParcel(parcelData);
+            setPinLockout({ isLocked: false, minutes: 0, remainingAttempts: null });
             if (parcelData.is_delegated) {
                 setCollectorType('DELEGATED_FLATMATE');
             } else {
@@ -168,7 +170,13 @@ const PickupVerification = () => {
                 }
             }
         } catch (err) {
-            setError(err.response?.data?.error || 'Verification failed. Incorrect ID or PIN.');
+            const data = err.response?.data;
+            if (data?.locked) {
+                setPinLockout({ isLocked: true, minutes: data.lockout_minutes || 15, remainingAttempts: 0 });
+            } else if (data?.remaining_attempts !== undefined) {
+                setPinLockout({ isLocked: false, minutes: 0, remainingAttempts: data.remaining_attempts });
+            }
+            setError(data?.error || 'Verification failed. Incorrect ID or PIN.');
         } finally {
             setLoading(false);
         }
@@ -411,10 +419,28 @@ const PickupVerification = () => {
                         <div>
                             {!verifiedParcel ? (
                                 <div className="gv-card p-4 p-md-5">
-                                    {error && (
+                                    {pinLockout.isLocked && (
+                                        <div className="alert alert-warning d-flex align-items-center mb-4 border-0 shadow-sm py-3">
+                                            <i className="bi bi-shield-exclamation fs-3 me-3 text-warning"></i>
+                                            <div>
+                                                <div className="fw-bold">Security Lockout Active</div>
+                                                <div className="small">Maximum incorrect PIN attempts reached. Verification locked for {pinLockout.minutes} minutes to prevent brute-force attacks.</div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {error && !pinLockout.isLocked && (
                                         <div className="alert alert-danger d-flex align-items-center mb-4 border-0 shadow-sm py-3">
                                             <i className="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
-                                            <div className="fw-medium">{error}</div>
+                                            <div>
+                                                <div className="fw-medium">{error}</div>
+                                                {pinLockout.remainingAttempts !== null && (
+                                                    <div className="small text-danger-emphasis mt-1">
+                                                        <i className="bi bi-shield-lock me-1"></i>
+                                                        <strong>{pinLockout.remainingAttempts}</strong> attempt{pinLockout.remainingAttempts !== 1 ? 's' : ''} remaining before temporary lockout.
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                     
@@ -427,6 +453,7 @@ const PickupVerification = () => {
                                                 placeholder="e.g. GV-12345"
                                                 value={credentials.parcel_id}
                                                 onChange={(e) => setCredentials({...credentials, parcel_id: e.target.value.toUpperCase()})}
+                                                disabled={pinLockout.isLocked}
                                                 required
                                             />
                                         </div>
@@ -441,12 +468,15 @@ const PickupVerification = () => {
                                                 maxLength="4"
                                                 value={credentials.pickup_pin}
                                                 onChange={(e) => setCredentials({...credentials, pickup_pin: e.target.value})}
+                                                disabled={pinLockout.isLocked}
                                                 required
                                             />
                                         </div>
-                                        <button type="submit" className="gv-btn-accent w-100 py-3 fs-5 fw-bold d-flex align-items-center justify-content-center gap-2" disabled={loading}>
+                                        <button type="submit" className="gv-btn-accent w-100 py-3 fs-5 fw-bold d-flex align-items-center justify-content-center gap-2" disabled={loading || pinLockout.isLocked}>
                                             {loading ? (
                                                 <><span className="spinner-border spinner-border-sm"></span> Verifying...</>
+                                            ) : pinLockout.isLocked ? (
+                                                <><i className="bi bi-lock-fill"></i> VERIFICATION LOCKED OUT</>
                                             ) : (
                                                 <><i className="bi bi-shield-check"></i> VERIFY PICKUP PIN</>
                                             )}

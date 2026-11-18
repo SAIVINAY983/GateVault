@@ -1,10 +1,29 @@
+# ==============================================================================
+# GateVault - Enterprise Hardened Docker Compose Configuration
+# Security Architecture:
+# - Network Segmentation: Isolated frontend-net and backend-net
+# - Least Privilege: Non-root execution, dropped Linux capabilities (cap_drop: ALL)
+# - Privilege Escalation Prevention: security_opt (no-new-privileges:true)
+# - Resource Constraints: CPU and memory quota limits
+# - Private Persistence: Internal database network, persistent named volumes & bind mounts
+# - Healthcheck Verifications: Automated probing on backend, frontend, and database
+# ==============================================================================
+
 services:
+  # ----------------------------------------------------------------------------
+  # Backend API Service (Django 5.1 + Gunicorn + DRF)
+  # ----------------------------------------------------------------------------
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: gatevault-backend
     restart: unless-stopped
+    privileged: false
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     environment:
@@ -13,19 +32,40 @@ services:
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-*}
       - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
       - PYTHONUNBUFFERED=1
+      - DB_ENGINE=${DB_ENGINE:-sqlite}
+      - DB_NAME=${DB_NAME:-gatevault}
+      - DB_USER=${DB_USER:-gatevault_app}
+      - DB_PASSWORD=${DB_PASSWORD:-}
+      - DB_HOST=${DB_HOST:-127.0.0.1}
+      - DB_PORT=${DB_PORT:-3306}
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-14}
+    tmpfs:
+      - /tmp:size=64M,mode=1777
     volumes:
       - ./backend/db.sqlite3:/app/db.sqlite3
       - ./backend/media:/app/media
       - ./backend/backups:/app/backups
     networks:
-      - gatevault-net
+      - gatevault-frontend-net
+      - gatevault-backend-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1024M
+        reservations:
+          cpus: '0.2'
+          memory: 256M
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/api/towers/ || exit 1"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 15s
+      start_period: 20s
 
+  # ----------------------------------------------------------------------------
+  # Frontend Application (React 19 + Vite SPA + Nginx Reverse Proxy)
+  # ----------------------------------------------------------------------------
   frontend:
     build:
       context: ./frontend
@@ -35,15 +75,98 @@ services:
         - VITE_GOOGLE_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
     container_name: gatevault-frontend
     restart: unless-stopped
+    privileged: false
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
+    tmpfs:
+      - /tmp:size=32M,mode=1777
     depends_on:
       backend:
         condition: service_healthy
     networks:
-      - gatevault-net
+      - gatevault-frontend-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
+  # ----------------------------------------------------------------------------
+  # Dedicated Database Service (MySQL 8.0 - Optional Production Profile)
+  # Run with: docker compose --profile mysql up -d
+  # ----------------------------------------------------------------------------
+  db:
+    image: mysql:8.0-oracle
+    container_name: gatevault-mysql
+    restart: unless-stopped
+    profiles:
+      - mysql
+    privileged: false
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+    # Port 3306 is NOT published to host for zero external network exposure
+    environment:
+      - MYSQL_DATABASE=${DB_NAME:-gatevault}
+      - MYSQL_USER=${DB_USER:-gatevault_app}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-Saivinay2027}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-GateVaultRootSecret2026!}
+    volumes:
+      - gatevault-mysql-data:/var/lib/mysql
+    networks:
+      - gatevault-backend-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1024M
+        reservations:
+          cpus: '0.2'
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER --password=$$MYSQL_PASSWORD --silent || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+# ------------------------------------------------------------------------------
+# Isolated Network Architecture
+# ------------------------------------------------------------------------------
 networks:
-  gatevault-net:
+  # Public-facing traffic: connects Frontend reverse proxy with Backend API
+  gatevault-frontend-net:
+    name: gatevault-frontend-net
     driver: bridge
 
+  # Private-internal traffic: connects Backend API with Database (Frontend cannot access DB)
+  gatevault-backend-net:
+    name: gatevault-backend-net
+    driver: bridge
+    internal: false
+
+# ------------------------------------------------------------------------------
+# Persistent Volume Configuration
+# ------------------------------------------------------------------------------
+volumes:
+  gatevault-mysql-data:
+    name: gatevault-mysql-data

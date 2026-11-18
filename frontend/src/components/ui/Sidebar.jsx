@@ -84,6 +84,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                             <NavLink to="/admin/history" icon="bi-clock-history" label={t('nav.parcel_history', 'Parcel History')} />
                             <NavLink to="/admin/courier-visits" icon="bi-truck-flatbed" label={t('nav.courier_visits', 'Courier Visits')} />
                             <NavLink to="/admin/reports" icon="bi-file-earmark-bar-graph" label={t('nav.reports_backups', 'Reports & Backups')} />
+                            <NavLink to="/admin/audit-logs" icon="bi-shield-shaded" label={t('nav.audit_logs', 'Audit & Security')} />
                             <NavLink to="/admin/users" icon="bi-people-fill" label={t('nav.user_management', 'User Management')} />
                         </>
                     )}

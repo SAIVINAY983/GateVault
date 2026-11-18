@@ -2,7 +2,9 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
-    CustomTokenObtainPairView, PublicResidentRegisterView, LogoutView, TowerViewSet, FlatViewSet, CarrierViewSet, StorageShelfViewSet,
+    CustomTokenObtainPairView, PublicResidentRegisterView, LogoutView,
+    PasswordResetRequestView, OTPVerifyView,
+    TowerViewSet, FlatViewSet, CarrierViewSet, StorageShelfViewSet,
     ParcelIntakeView, GuardPendingParcelsView, VerifyPickupView, ConfirmHandoverView,
     ResidentParcelsView, AdminDashboardStatsView, OverdueParcelsView, AdminParcelHistoryView,
     AdminUserManagementViewSet, NotificationListView, UnreadNotificationCountView,
@@ -35,7 +37,8 @@ from .views import (
     AdminDatabaseBackupCreateView, AdminDatabaseBackupListView, AdminDatabaseBackupDownloadView,
     GoogleOAuthLoginView, GoogleResidentRegisterView, ResidentLinkGoogleView,
     AdminResidentApprovalsListView, AdminResidentApproveView, AdminResidentRejectView,
-    CommunityOverviewView
+    CommunityOverviewView,
+    AuditLogViewSet, SecurityAlertViewSet
 )
 
 router = DefaultRouter()
@@ -44,6 +47,8 @@ router.register(r'flats', FlatViewSet, basename='flat')
 router.register(r'carriers', CarrierViewSet, basename='carrier')
 router.register(r'shelves', StorageShelfViewSet, basename='shelf')
 router.register(r'expected-deliveries', ExpectedDeliveryViewSet, basename='expected-delivery')
+router.register(r'admin/audit-logs', AuditLogViewSet, basename='admin-audit-logs')
+router.register(r'admin/security-alerts', SecurityAlertViewSet, basename='admin-security-alerts')
 
 urlpatterns = [
     # Auth URLs
@@ -51,6 +56,8 @@ urlpatterns = [
     path('auth/logout/', LogoutView.as_view(), name='auth-logout'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/register/', PublicResidentRegisterView.as_view(), name='register_resident'),
+    path('auth/password-reset/', PasswordResetRequestView.as_view(), name='auth-password-reset'),
+    path('auth/verify-otp/', OTPVerifyView.as_view(), name='auth-verify-otp'),
     path('auth/google/', GoogleOAuthLoginView.as_view(), name='google-oauth-login'),
     path('auth/google/register/', GoogleResidentRegisterView.as_view(), name='google-resident-register'),
     path('resident/link-google/', ResidentLinkGoogleView.as_view(), name='resident-link-google'),

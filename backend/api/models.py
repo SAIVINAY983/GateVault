@@ -3,6 +3,8 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 import random
 import string
+import secrets
+from datetime import timedelta
 from django.utils import timezone
 
 class User(AbstractUser):
@@ -173,7 +175,8 @@ def generate_parcel_id():
     return f"GV-{year}-{random_str}"
 
 def generate_pickup_pin():
-    return ''.join(random.choices(string.digits, k=4))
+    # Cryptographically secure 4-digit numeric PIN (0000 - 9999)
+    return f"{secrets.randbelow(10000):04d}"
 
 class Parcel(models.Model):
     STATUS_CHOICES = (
@@ -280,6 +283,30 @@ class Parcel(models.Model):
     received_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='registered_parcels', help_text="Guard who registered the parcel")
     handed_over_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='handed_over_parcels', help_text="Guard who handed over the parcel")
 
+    TERMINAL_STATUSES = {'HANDED_OVER', 'DELIVERED_DIRECTLY_TO_FLAT', 'CANCELLED'}
+
+    VALID_TRANSITIONS = {
+        'AWAITING_PICKUP': {'OVERDUE', 'HANDED_OVER', 'CANCELLED', 'DELIVERY_ATTEMPTED', 'RESCHEDULED', 'DELIVERED_DIRECTLY_TO_FLAT'},
+        'OVERDUE': {'HANDED_OVER', 'CANCELLED', 'DELIVERED_DIRECTLY_TO_FLAT'},
+        'DELIVERY_ATTEMPTED': {'RESCHEDULED', 'AWAITING_PICKUP', 'CANCELLED'},
+        'RESCHEDULED': {'AWAITING_PICKUP', 'CANCELLED'},
+        'HANDED_OVER': set(),
+        'DELIVERED_DIRECTLY_TO_FLAT': set(),
+        'CANCELLED': set(),
+    }
+
+    def clean(self):
+        super().clean()
+        if self.pk:
+            orig = Parcel.objects.filter(pk=self.pk).values('status').first()
+            if orig:
+                orig_status = orig['status']
+                if orig_status in self.TERMINAL_STATUSES and self.status != orig_status:
+                    from django.core.exceptions import ValidationError
+                    raise ValidationError(
+                        f"Data Integrity Violation: Parcel '{self.parcel_id}' is in terminal status '{orig_status}' and cannot transition to '{self.status}'."
+                    )
+
     def __str__(self):
         return f"Parcel {self.parcel_id} for {self.flat}"
 
@@ -293,6 +320,24 @@ class Parcel(models.Model):
             if time_diff.total_seconds() > 48 * 3600:
                 return True
         return False
+
+    @property
+    def is_pin_expired(self):
+        """
+        A PIN is considered expired if the parcel has already been handed over or cancelled,
+        or if the parcel has been waiting for pickup for more than 7 days (168 hours).
+        """
+        if not self.pickup_pin or self.status not in ['AWAITING_PICKUP', 'OVERDUE']:
+            return True
+        if self.received_at:
+            time_diff = timezone.now() - self.received_at
+            if time_diff > timedelta(days=7):
+                return True
+        return False
+
+    @property
+    def is_pin_valid(self):
+        return bool(self.status in ['AWAITING_PICKUP', 'OVERDUE'] and self.pickup_pin and not self.is_pin_expired)
 
 class PickupVerification(models.Model):
     VERIFICATION_METHOD_CHOICES = (
@@ -1070,6 +1115,108 @@ class DatabaseBackup(models.Model):
     @property
     def checksum_sha256(self):
         return self.checksum
+
+
+def generate_audit_event_id():
+    return f"EVT-{secrets.token_hex(6).upper()}"
+
+
+class AuditLog(models.Model):
+    """
+    Centralized, tamper-resistant audit log for security and operational events.
+    Captures actor, action, target entity, timestamp, IP, status, severity, and safe metadata.
+    Sensitive data (passwords, tokens, PINs) must never be stored here.
+    """
+    SEVERITY_CHOICES = (
+        ('LOW', 'Low'),
+        ('MEDIUM', 'Medium'),
+        ('HIGH', 'High'),
+        ('CRITICAL', 'Critical'),
+    )
+
+    STATUS_CHOICES = (
+        ('SUCCESS', 'Success'),
+        ('FAILED', 'Failed'),
+        ('BLOCKED', 'Blocked'),
+    )
+
+    event_id = models.CharField(max_length=64, unique=True, default=generate_audit_event_id, db_index=True)
+    event_type = models.CharField(max_length=60, db_index=True)
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_events')
+    actor_username = models.CharField(max_length=150, blank=True, null=True, db_index=True)
+    actor_role = models.CharField(max_length=20, default='SYSTEM', db_index=True)
+    target_entity_type = models.CharField(max_length=50, blank=True, null=True, db_index=True)
+    target_entity_id = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    action_description = models.TextField()
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='SUCCESS', db_index=True)
+    ip_address = models.CharField(max_length=45, blank=True, null=True, db_index=True)
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES, default='LOW', db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['timestamp', 'severity']),
+            models.Index(fields=['event_type', 'timestamp']),
+            models.Index(fields=['actor_role', 'timestamp']),
+            models.Index(fields=['target_entity_type', 'target_entity_id']),
+        ]
+
+    def __str__(self):
+        return f"[{self.event_type}] {self.actor_username or 'System'} - {self.action_description[:40]}"
+
+
+def generate_security_alert_id():
+    return f"ALT-{secrets.token_hex(6).upper()}"
+
+
+class SecurityAlert(models.Model):
+    """
+    Security Alert for suspicious activity detection (brute-force logins, PIN attacks,
+    repeated invalid QR passes, unauthorized data access, role escalation attempts).
+    """
+    SEVERITY_CHOICES = (
+        ('LOW', 'Low'),
+        ('MEDIUM', 'Medium'),
+        ('HIGH', 'High'),
+        ('CRITICAL', 'Critical'),
+    )
+
+    STATUS_CHOICES = (
+        ('OPEN', 'Open'),
+        ('REVIEWED', 'Reviewed'),
+        ('RESOLVED', 'Resolved'),
+    )
+
+    alert_id = models.CharField(max_length=64, unique=True, default=generate_security_alert_id, db_index=True)
+    title = models.CharField(max_length=200)
+    alert_type = models.CharField(max_length=60, db_index=True)
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES, default='MEDIUM', db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='OPEN', db_index=True)
+    affected_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='security_alerts')
+    affected_username = models.CharField(max_length=150, blank=True, null=True, db_index=True)
+    source_ip = models.CharField(max_length=45, blank=True, null=True, db_index=True)
+    details = models.TextField()
+    event_count = models.IntegerField(default=1)
+    threshold_limit = models.IntegerField(default=5)
+    first_detected_at = models.DateTimeField(default=timezone.now)
+    last_detected_at = models.DateTimeField(default=timezone.now, db_index=True)
+    resolved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='resolved_security_alerts')
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_notes = models.TextField(blank=True, null=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-last_detected_at']
+        indexes = [
+            models.Index(fields=['status', 'severity']),
+            models.Index(fields=['alert_type', 'status']),
+        ]
+
+    def __str__(self):
+        return f"[{self.severity}] {self.title} ({self.status})"
+
 
 
 

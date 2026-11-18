@@ -1,5 +1,9 @@
-# Environments
+# Environments & Secrets
 .env
+.env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
 .venv
 env/
 venv/
@@ -38,12 +42,19 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Django
+# Django & Database
 *.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-backend/backups/*.sqlite3
+db.sqlite3-shm
+db.sqlite3-wal
+*.sql
+*.sql.gz
+*.dump
+*.backup
+backups/
+backend/backups/
 
 # VS Code
 .vscode/

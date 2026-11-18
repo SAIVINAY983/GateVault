@@ -1,18 +1,50 @@
-venv
-.venv
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.git
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Python cache & compiled bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Version control & repository metadata
+.git/
 .gitignore
+.gitattributes
+
+# Environment files & secrets (DO NOT BAKE INTO IMAGES)
 .env
-staticfiles
-*.log
-.pytest_cache
-.coverage
-htmlcov
+.env.*
+!.env.example
+
+# Local SQLite databases (mounted via volume, never baked in)
+*.sqlite3
 *.sqlite3-journal
 *.sqlite3-wal
 *.sqlite3-shm
 
+# Static & media runtime assets (mounted via volumes)
+staticfiles/
+media/
+backups/
+
+# Logs & debugging output
+*.log
+npm-debug.log*
+
+# Test suites, coverage, & temporary artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+scratch/
+docs/
+*.md
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-*

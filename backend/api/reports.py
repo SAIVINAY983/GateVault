@@ -2,8 +2,11 @@ import os
 import io
 import csv
 import json
+import gzip
+import shutil
 import sqlite3
 import hashlib
+import subprocess
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.utils import timezone
@@ -789,23 +792,62 @@ def generate_pdf_report(data):
 
 
 # ==========================================
-# SQLITE ONLINE BACKUP SERVICE
+# ==========================================
+# DATABASE BACKUP, RETENTION & RESTORE SERVICE
 # ==========================================
 
-def execute_sqlite_backup(user=None, backup_type='MANUAL'):
+def prune_old_backups(retention_days=None):
     """
-    Safely executes an online backup of the SQLite database using SQLite's online backup API.
-    Performs integrity verification and SHA256 checksum calculation before marking COMPLETED.
+    Prunes expired completed database backups while strictly preserving the latest available backup.
+    Guarantees that GateVault will never delete the only available backup.
     """
-    source_db_path = settings.DATABASES['default']['NAME']
-    if not os.path.isabs(source_db_path):
-        source_db_path = os.path.join(settings.BASE_DIR, source_db_path)
+    if retention_days is None:
+        retention_days = getattr(settings, 'BACKUP_RETENTION_DAYS', 14)
 
-    backup_dir = os.path.join(settings.BASE_DIR, 'backups')
+    cutoff = timezone.now() - timedelta(days=retention_days)
+    completed_backups = list(DatabaseBackup.objects.filter(status='COMPLETED').order_by('-created_at'))
+    
+    # If there is only 1 (or 0) completed backup, NEVER delete it!
+    if len(completed_backups) <= 1:
+        return 0
+
+    pruned_count = 0
+    # The newest completed backup is completed_backups[0], never delete it!
+    for ob in completed_backups[1:]:
+        if ob.created_at < cutoff:
+            if os.path.exists(ob.file_path):
+                try:
+                    os.remove(ob.file_path)
+                except Exception:
+                    pass
+            ob.delete()
+            pruned_count += 1
+
+    return pruned_count
+
+
+def execute_database_backup(user=None, backup_type='MANUAL'):
+    """
+    Safely creates a verified database backup supporting both MySQL (production/staging)
+    and SQLite (local development).
+    - MySQL: Executes mysqldump with --single-transaction, --quick, --routines, --triggers, --hex-blob
+             into a compressed .sql.gz stream without exposing credentials on CLI process tables.
+    - SQLite: Uses SQLite online backup API with PRAGMA integrity_check verification.
+    - Computes SHA256 cryptographic checksum and file size.
+    - Enforces configurable retention while strictly guaranteeing the sole backup is NEVER deleted.
+    - Notifies Community Admins and records security audit log.
+    """
+    from .security import record_audit_event
+
+    db_conf = settings.DATABASES['default']
+    db_engine = db_conf.get('ENGINE', '')
+    is_mysql = 'mysql' in db_engine
+
+    backup_dir = str(getattr(settings, 'BACKUP_DIR', os.path.join(settings.BASE_DIR, 'backups')))
     os.makedirs(backup_dir, exist_ok=True)
 
     timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
-    backup_filename = f"gatevault_backup_{timestamp}.sqlite3"
+    backup_filename = f"gatevault_backup_{timestamp}.sql.gz" if is_mysql else f"gatevault_backup_{timestamp}.sqlite3"
     dest_path = os.path.join(backup_dir, backup_filename)
 
     backup_record = DatabaseBackup.objects.create(
@@ -818,26 +860,74 @@ def execute_sqlite_backup(user=None, backup_type='MANUAL'):
     )
 
     try:
-        source_conn = sqlite3.connect(source_db_path)
-        dest_conn = sqlite3.connect(dest_path)
+        if is_mysql:
+            # MySQL consistent transactional dump via mysqldump
+            dump_bin = getattr(settings, 'BACKUP_MYSQL_BIN', 'mysqldump')
+            db_name = db_conf.get('NAME', 'gatevault')
+            db_user = db_conf.get('USER', 'gatevault_app')
+            db_pass = db_conf.get('PASSWORD', '')
+            db_host = db_conf.get('HOST', '127.0.0.1')
+            db_port = str(db_conf.get('PORT', '3306'))
 
-        with dest_conn:
-            source_conn.backup(dest_conn, pages=100)
+            dump_cmd = [
+                dump_bin,
+                f"-h{db_host}",
+                f"-P{db_port}",
+                f"-u{db_user}",
+                '--single-transaction',
+                '--quick',
+                '--routines',
+                '--triggers',
+                '--hex-blob',
+                '--set-gtid-purged=OFF',
+                db_name
+            ]
+            dump_env = os.environ.copy()
+            if db_pass:
+                dump_env['MYSQL_PWD'] = db_pass
 
-        dest_conn.close()
-        source_conn.close()
+            with open(dest_path, 'wb') as f_out:
+                with gzip.GzipFile(fileobj=f_out, mode='wb') as gz_out:
+                    proc = subprocess.Popen(
+                        dump_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        env=dump_env
+                    )
+                    while True:
+                        chunk = proc.stdout.read(65536)
+                        if not chunk:
+                            break
+                        gz_out.write(chunk)
+                    proc.stdout.close()
+                    _, stderr = proc.communicate()
+                    if proc.returncode != 0:
+                        err_text = stderr.decode('utf-8', errors='ignore')
+                        raise RuntimeError(f"mysqldump failed (code {proc.returncode}): {err_text}")
+        else:
+            # SQLite online backup
+            source_db_path = db_conf.get('NAME')
+            if not os.path.isabs(source_db_path):
+                source_db_path = os.path.join(settings.BASE_DIR, source_db_path)
 
-        # Step 2: Integrity Verification
-        verify_conn = sqlite3.connect(dest_path)
-        cursor = verify_conn.cursor()
-        cursor.execute("PRAGMA integrity_check;")
-        check_res = cursor.fetchone()
-        verify_conn.close()
+            source_conn = sqlite3.connect(source_db_path)
+            dest_conn = sqlite3.connect(dest_path)
+            with dest_conn:
+                source_conn.backup(dest_conn, pages=100)
+            dest_conn.close()
+            source_conn.close()
 
-        if not check_res or check_res[0] != 'ok':
-            raise ValueError(f"SQLite backup failed integrity verification: {check_res}")
+            # Integrity Verification
+            verify_conn = sqlite3.connect(dest_path)
+            cursor = verify_conn.cursor()
+            cursor.execute("PRAGMA integrity_check;")
+            check_res = cursor.fetchone()
+            verify_conn.close()
 
-        # Step 3: Compute SHA256 Checksum and Size
+            if not check_res or check_res[0] != 'ok':
+                raise ValueError(f"SQLite backup failed integrity verification: {check_res}")
+
+        # Compute SHA256 Checksum and Size
         file_size = os.path.getsize(dest_path)
         sha256 = hashlib.sha256()
         with open(dest_path, 'rb') as f:
@@ -845,16 +935,8 @@ def execute_sqlite_backup(user=None, backup_type='MANUAL'):
                 sha256.update(chunk)
         checksum = sha256.hexdigest()
 
-        # Step 4: Prune old backups based on 30-day retention
-        retention_cutoff = timezone.now() - timedelta(days=30)
-        old_backups = DatabaseBackup.objects.filter(created_at__lt=retention_cutoff, status='COMPLETED')
-        for ob in old_backups:
-            if os.path.exists(ob.file_path):
-                try:
-                    os.remove(ob.file_path)
-                except Exception:
-                    pass
-            ob.delete()
+        # Prune old backups with retention rule (never delete sole backup)
+        prune_old_backups()
 
         # Update record
         backup_record.status = 'COMPLETED'
@@ -862,14 +944,26 @@ def execute_sqlite_backup(user=None, backup_type='MANUAL'):
         backup_record.checksum = checksum
         backup_record.save()
 
-        # Create notifications for admins
+        # Record audit log
+        record_audit_event(
+            event_type='DATABASE_BACKUP_COMPLETED',
+            description=f"Database backup '{backup_filename}' ({round(file_size/1024, 1)} KB) completed successfully.",
+            actor=user,
+            actor_role='ADMIN' if user and getattr(user, 'is_staff', False) else 'SYSTEM',
+            target_entity_type='DATABASE',
+            status='SUCCESS',
+            severity='INFO',
+            metadata={'backup_name': backup_filename, 'size_bytes': file_size, 'checksum': checksum}
+        )
+
+        # Notify Admins
         try:
             admins = User.objects.filter(role='ADMIN')
             for admin in admins:
                 Notification.objects.create(
                     user=admin,
                     title="Database Backup Completed",
-                    message=f"Consistent SQLite snapshot '{backup_filename}' ({round(file_size/1024, 1)} KB) created and verified successfully.",
+                    message=f"Consistent database snapshot '{backup_filename}' ({round(file_size/1024, 1)} KB) created and verified successfully.",
                     notification_type='DATABASE_BACKUP'
                 )
         except Exception:
@@ -887,16 +981,144 @@ def execute_sqlite_backup(user=None, backup_type='MANUAL'):
         backup_record.failure_reason = str(exc)
         backup_record.save()
 
+        record_audit_event(
+            event_type='DATABASE_BACKUP_FAILED',
+            description=f"Database backup failed: {str(exc)}",
+            actor=user,
+            actor_role='ADMIN' if user and getattr(user, 'is_staff', False) else 'SYSTEM',
+            target_entity_type='DATABASE',
+            status='FAILED',
+            severity='HIGH',
+            metadata={'error': str(exc)}
+        )
+
         try:
             admins = User.objects.filter(role='ADMIN')
             for admin in admins:
                 Notification.objects.create(
                     user=admin,
                     title="Database Backup Failed",
-                    message=f"Snapshot generation failed: {str(exc)}",
+                    message=f"Database snapshot generation failed: {str(exc)}",
                     notification_type='DATABASE_BACKUP'
                 )
         except Exception:
             pass
 
         return False, str(exc), backup_record
+
+
+def restore_database(backup_path, confirm=False):
+    """
+    Safely restores the database from an existing verified backup file.
+    Validations:
+    - Verifies file exists on disk and is within permitted backups directory.
+    - Requires explicit confirmation (confirm=True) to prevent accidental data overwrites.
+    - Checks file extension and format (.sql.gz, .sql, .sqlite3).
+    - Restores MySQL via mysql client or SQLite via file replacement.
+    - Returns (success, message).
+    """
+    from .security import record_audit_event
+
+    if not confirm:
+        return False, "Restoration aborted: Explicit confirmation (confirm=True) is required for destructive restore."
+
+    if not os.path.isabs(backup_path):
+        backup_path = os.path.abspath(backup_path)
+
+    if not os.path.exists(backup_path):
+        return False, f"Backup file not found: {backup_path}"
+
+    backup_dir = os.path.abspath(str(getattr(settings, 'BACKUP_DIR', os.path.join(settings.BASE_DIR, 'backups'))))
+    if not backup_path.startswith(backup_dir):
+        return False, "Security Error: Backup file must reside inside the designated backups directory."
+
+    db_conf = settings.DATABASES['default']
+    db_engine = db_conf.get('ENGINE', '')
+    is_mysql = 'mysql' in db_engine
+
+    try:
+        if is_mysql:
+            mysql_bin = getattr(settings, 'RESTORE_MYSQL_BIN', 'mysql')
+            db_name = db_conf.get('NAME', 'gatevault')
+            db_user = db_conf.get('USER', 'gatevault_app')
+            db_pass = db_conf.get('PASSWORD', '')
+            db_host = db_conf.get('HOST', '127.0.0.1')
+            db_port = str(db_conf.get('PORT', '3306'))
+
+            restore_cmd = [
+                mysql_bin,
+                f"-h{db_host}",
+                f"-P{db_port}",
+                f"-u{db_user}",
+                db_name
+            ]
+            restore_env = os.environ.copy()
+            if db_pass:
+                restore_env['MYSQL_PWD'] = db_pass
+
+            proc = subprocess.Popen(
+                restore_cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=restore_env
+            )
+
+            if backup_path.endswith('.gz'):
+                with gzip.open(backup_path, 'rb') as gz_in:
+                    while chunk := gz_in.read(65536):
+                        proc.stdin.write(chunk)
+            else:
+                with open(backup_path, 'rb') as f_in:
+                    while chunk := f_in.read(65536):
+                        proc.stdin.write(chunk)
+
+            proc.stdin.close()
+            _, stderr = proc.communicate()
+            if proc.returncode != 0:
+                raise RuntimeError(f"MySQL restoration failed (code {proc.returncode}): {stderr.decode('utf-8', errors='ignore')}")
+
+        else:
+            # SQLite restoration: verify integrity before copying
+            verify_conn = sqlite3.connect(backup_path)
+            cursor = verify_conn.cursor()
+            cursor.execute("PRAGMA integrity_check;")
+            check_res = cursor.fetchone()
+            verify_conn.close()
+
+            if not check_res or check_res[0] != 'ok':
+                raise ValueError(f"Restoration aborted: Backup file failed integrity check ({check_res})")
+
+            target_db = db_conf.get('NAME')
+            if not os.path.isabs(target_db):
+                target_db = os.path.join(settings.BASE_DIR, target_db)
+
+            # Copy verified backup over current database file
+            shutil.copyfile(backup_path, target_db)
+
+        record_audit_event(
+            event_type='DATABASE_RESTORE_COMPLETED',
+            description=f"Database successfully restored from backup '{os.path.basename(backup_path)}'.",
+            actor_role='ADMIN',
+            target_entity_type='DATABASE',
+            status='SUCCESS',
+            severity='HIGH',
+            metadata={'backup_file': os.path.basename(backup_path)}
+        )
+        return True, f"Database restored successfully from '{os.path.basename(backup_path)}'."
+
+    except Exception as exc:
+        record_audit_event(
+            event_type='DATABASE_RESTORE_FAILED',
+            description=f"Database restoration failed: {str(exc)}",
+            actor_role='ADMIN',
+            target_entity_type='DATABASE',
+            status='FAILED',
+            severity='CRITICAL',
+            metadata={'backup_file': os.path.basename(backup_path), 'error': str(exc)}
+        )
+        return False, str(exc)
+
+
+# Backward compatibility alias
+execute_sqlite_backup = execute_database_backup

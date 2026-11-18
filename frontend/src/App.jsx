@@ -19,6 +19,7 @@ import AdminCourierVisits from './pages/admin/AdminCourierVisits';
 import AdminAlerts from './pages/admin/AdminAlerts';
 import AdminFeedback from './pages/admin/AdminFeedback';
 import AdminReports from './pages/admin/AdminReports';
+import AdminAuditLogs from './pages/admin/AdminAuditLogs';
 import GuardDashboard from './pages/guard/GuardDashboard';
 import ParcelIntake from './pages/guard/ParcelIntake';
 import PickupVerification from './pages/guard/PickupVerification';
@@ -83,6 +84,9 @@ function App() {
             } />
             <Route path="/admin/reports" element={
               <RoleBasedRoute allowedRoles={['ADMIN']}><AdminReports /></RoleBasedRoute>
+            } />
+            <Route path="/admin/audit-logs" element={
+              <RoleBasedRoute allowedRoles={['ADMIN']}><AdminAuditLogs /></RoleBasedRoute>
             } />
 
             {/* Guard Routes */}

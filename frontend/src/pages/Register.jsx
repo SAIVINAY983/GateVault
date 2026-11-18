@@ -267,21 +267,38 @@ const Register = () => {
                     min-height: 100vh;
                     overflow-y: auto;
                     -webkit-overflow-scrolling: touch;
+                    overscroll-behavior-y: contain;
                 }
                 @media (min-width: 992px) {
                     .register-wrapper {
                         height: 100vh;
+                        max-height: 100vh;
                         overflow: hidden;
                     }
                     .register-left-banner {
                         height: 100vh;
                         position: sticky;
                         top: 0;
+                        overflow: hidden;
                     }
                     .register-scroll-col {
                         height: 100vh;
                         max-height: 100vh;
                         overflow-y: auto;
+                        -webkit-overflow-scrolling: touch;
+                    }
+                }
+                @media (max-width: 991.98px) {
+                    .register-wrapper {
+                        height: auto;
+                        min-height: 100vh;
+                        overflow: visible;
+                    }
+                    .register-scroll-col {
+                        height: auto;
+                        min-height: 100vh;
+                        max-height: none;
+                        overflow-y: visible;
                     }
                 }
                 `}
@@ -350,7 +367,7 @@ const Register = () => {
                     </Link>
                 </div>
 
-                <div className="mx-auto w-100 my-auto py-4" style={{maxWidth: '480px'}}>
+                <div className="mx-auto w-100 py-4 py-lg-5 pb-5" style={{maxWidth: '480px'}}>
                     <div className="mb-4">
                         <h2 className="fw-bold text-dark mb-1">{t('auth.register_title', 'Create resident account')}</h2>
                         <p className="text-muted">{t('auth.register_subtitle', 'Register to securely receive and verify parcels at your gatehouse.')}</p>
@@ -452,7 +469,7 @@ const Register = () => {
                         {/* Residential Address: Tower -> Floor -> Flat Number */}
                         <div className="p-3 bg-light rounded-3 mb-4 border">
                             <div className="fw-semibold small text-dark mb-2 d-flex align-items-center gap-2">
-                                <i className="bi bi-buildings text-primary"></i> {t('common.tower', 'Residential Address')}
+                                <i className="bi bi-buildings text-primary"></i> {t('auth.residential_address', 'Residential Address')}
                             </div>
                             <div className="row g-2">
                                 <div className="col-12 col-md-4">

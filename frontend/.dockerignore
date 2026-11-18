@@ -1,11 +1,33 @@
-node_modules
-dist
-.git
+# Dependencies & build outputs
+node_modules/
+dist/
+build/
+
+# Version control & repository metadata
+.git/
 .gitignore
+.gitattributes
+
+# Environment files & secrets (DO NOT BAKE INTO IMAGES)
 .env
-.env.production
-.env.local
+.env.*
+!.env.example
+
+# Logs & debugging output
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Test suites & coverage
+coverage/
+.nyc_output/
+tests/
+scratch/
+docs/
+*.md
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-*
