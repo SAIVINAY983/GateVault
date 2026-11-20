@@ -9,7 +9,7 @@ import LanguageSelector from '../components/ui/LanguageSelector';
 
 // Raw axios instance for public unauthenticated endpoints
 const publicAxios = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/',
+    baseURL: import.meta.env.VITE_API_URL || 'https://gatevault.onrender.com/api/',
     headers: { 'Content-Type': 'application/json' }
 });
 

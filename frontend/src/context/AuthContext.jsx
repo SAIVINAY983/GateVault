@@ -66,7 +66,8 @@ export const AuthProvider = ({ children }) => {
             console.error("Login Error:", error);
             let errMsg = 'Invalid credentials';
             if (!error.response) {
-                errMsg = 'Network Error: Cannot connect to backend (http://127.0.0.1:8000)';
+                const targetUrl = axiosInstance.defaults.baseURL || import.meta.env.VITE_API_URL || 'the backend';
+                errMsg = `Network Error: Cannot connect to backend at ${targetUrl}. Please verify the backend is online and CORS is configured.`;
             } else if (error.response.data && error.response.data.detail) {
                 errMsg = error.response.data.detail;
             } else if (error.response.data && error.response.data.error) {
